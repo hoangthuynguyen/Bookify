@@ -7,6 +7,9 @@ const RICH_FONTS = [
   'Times New Roman', 'Crimson Text', 'Lora', 'Merriweather', 'PT Serif',
   'Arial', 'Helvetica', 'Verdana', 'Trebuchet MS', 'Courier New',
   'Caveat', 'Dancing Script', 'Special Elite',
+  // Vietnamese-safe fonts (full diacritic support)
+  'EB Garamond', 'Playfair Display', 'Noto Serif', 'Noto Sans',
+  'Montserrat', 'Open Sans', 'Roboto', 'Literata', 'Be Vietnam Pro', 'Patrick Hand',
 ];
 
 const SCENE_BREAK_SYMBOLS = [

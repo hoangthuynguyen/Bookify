@@ -9,12 +9,93 @@ export interface BookTemplate {
   id: string;
   name: string;
   emoji: string;
-  category: 'fiction' | 'nonfiction' | 'special';
+  category: 'vietnamese' | 'fiction' | 'nonfiction' | 'special';
   description: string;
   design: BookDesign;
 }
 
 export const BOOK_TEMPLATES: BookTemplate[] = [
+  // ─── Sách Tiếng Việt ───
+  // All fonts below ship a full Vietnamese subset (diacritics render correctly)
+  {
+    id: 'vn-phat-hoc',
+    name: 'Phật học & Thiền',
+    emoji: '🪷',
+    category: 'vietnamese',
+    description: 'Thanh tịnh, khoảng trắng rộng, hoa sen ngắt đoạn — hợp sách tâm linh, thiền, Phật pháp.',
+    design: {
+      bodyFont: 'EB Garamond', headingFont: 'Playfair Display', fontSize: 12, lineHeight: 1.7,
+      colorAccent: '#5d4a7e', dropCaps: false, dropCapLines: 2, dropCapStyle: 'classic',
+      sceneBreakSymbol: '❀', headingGap: 'spacious', chapterStartPosition: 'middle',
+      trimSize: '5.5x8.5', bindingType: 'paperback', runningHeader: 'chapter_title',
+    },
+  },
+  {
+    id: 'vn-tieu-thuyet',
+    name: 'Tiểu thuyết Việt',
+    emoji: '📖',
+    category: 'vietnamese',
+    description: 'Lora ấm áp có đủ dấu tiếng Việt, drop cap trang nhã, nhịp đọc cổ điển.',
+    design: {
+      bodyFont: 'Lora', headingFont: 'Playfair Display', fontSize: 11.5, lineHeight: 1.6,
+      colorAccent: '#8c3b2e', dropCaps: true, dropCapLines: 3, dropCapStyle: 'accent',
+      sceneBreakSymbol: '❧', headingGap: 'normal', chapterStartPosition: 'top',
+      trimSize: '5.25x8', bindingType: 'paperback', runningHeader: 'author_title',
+    },
+  },
+  {
+    id: 'vn-tan-van',
+    name: 'Tản văn & Tùy bút',
+    emoji: '🌾',
+    category: 'vietnamese',
+    description: 'Tiêu đề viết tay bay bổng, thân chữ mềm, nhiều khoảng thở — hợp tản văn, thơ xuôi.',
+    design: {
+      bodyFont: 'Noto Serif', headingFont: 'Dancing Script', fontSize: 11.5, lineHeight: 1.7,
+      colorAccent: '#4a6b4f', dropCaps: false, dropCapLines: 2, dropCapStyle: 'classic',
+      sceneBreakSymbol: '· · ·', headingGap: 'spacious', chapterStartPosition: 'middle',
+      trimSize: '5x8', bindingType: 'paperback', runningHeader: 'none',
+    },
+  },
+  {
+    id: 'vn-kinh-doanh',
+    name: 'Kinh doanh & Kỹ năng',
+    emoji: '💼',
+    category: 'vietnamese',
+    description: 'Montserrat hiện đại cho tiêu đề, bố cục gọn dễ tra cứu — sách self-help, khởi nghiệp.',
+    design: {
+      bodyFont: 'Noto Serif', headingFont: 'Montserrat', fontSize: 11, lineHeight: 1.55,
+      colorAccent: '#14508c', dropCaps: false, dropCapLines: 2, dropCapStyle: 'classic',
+      sceneBreakSymbol: '— — —', headingGap: 'compact', chapterStartPosition: 'top',
+      trimSize: '6x9', bindingType: 'paperback', runningHeader: 'chapter_title',
+    },
+  },
+  {
+    id: 'vn-giao-trinh',
+    name: 'Giáo trình & Học thuật',
+    emoji: '🎓',
+    category: 'vietnamese',
+    description: 'Times New Roman chuẩn học thuật Việt Nam, khổ lớn 7×10, mật độ chữ hợp lý.',
+    design: {
+      bodyFont: 'Times New Roman', headingFont: 'Arial', fontSize: 11, lineHeight: 1.45,
+      colorAccent: '#1a1a1a', dropCaps: false, dropCapLines: 2, dropCapStyle: 'classic',
+      sceneBreakSymbol: '§', headingGap: 'compact', chapterStartPosition: 'top',
+      trimSize: '7x10', bindingType: 'paperback', runningHeader: 'chapter_title',
+    },
+  },
+  {
+    id: 'vn-thieu-nhi',
+    name: 'Thiếu nhi Việt',
+    emoji: '🧒',
+    category: 'vietnamese',
+    description: 'Chữ to rõ, tiêu đề nét vẽ tay vui mắt, khổ vuông — truyện tranh chữ, sách kể chuyện.',
+    design: {
+      bodyFont: 'Verdana', headingFont: 'Patrick Hand', fontSize: 14, lineHeight: 1.7,
+      colorAccent: '#e07b39', dropCaps: false, dropCapLines: 2, dropCapStyle: 'accent',
+      sceneBreakSymbol: '★ ★ ★', headingGap: 'normal', chapterStartPosition: 'top',
+      trimSize: '8.5x8.5', bindingType: 'hardcover', runningHeader: 'none',
+    },
+  },
+
   // ─── Fiction ───
   {
     id: 'epic-fantasy',
@@ -219,6 +300,7 @@ export const BOOK_TEMPLATES: BookTemplate[] = [
 ];
 
 export const TEMPLATE_CATEGORIES: { id: BookTemplate['category']; label: string }[] = [
+  { id: 'vietnamese', label: 'Sách Tiếng Việt 🇻🇳' },
   { id: 'fiction', label: 'Fiction' },
   { id: 'nonfiction', label: 'Non-Fiction' },
   { id: 'special', label: 'Special Editions' },

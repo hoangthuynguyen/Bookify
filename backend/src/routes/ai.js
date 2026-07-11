@@ -12,6 +12,17 @@ const ALLOWED_FONTS = [
   'Times New Roman', 'Crimson Text', 'Lora', 'Merriweather', 'PT Serif',
   'Arial', 'Helvetica', 'Verdana', 'Trebuchet MS', 'Courier New',
   'Caveat', 'Dancing Script', 'Special Elite',
+  'EB Garamond', 'Playfair Display', 'Noto Serif', 'Noto Sans',
+  'Montserrat', 'Open Sans', 'Roboto', 'Literata', 'Be Vietnam Pro', 'Patrick Hand',
+];
+
+// Fonts whose Google Fonts build includes the full Vietnamese subset —
+// required for diacritics (ắ ằ ẳ ẵ ặ ...) to render correctly
+const VIETNAMESE_SAFE_FONTS = [
+  'EB Garamond', 'Playfair Display', 'Noto Serif', 'Noto Sans', 'Lora',
+  'Merriweather', 'Montserrat', 'Open Sans', 'Roboto', 'Literata',
+  'Be Vietnam Pro', 'Patrick Hand', 'Dancing Script', 'Caveat',
+  'Times New Roman', 'Arial', 'Verdana', 'Georgia', 'Courier New',
 ];
 const ALLOWED_TRIM_SIZES = ['4.25x6.87', '5x8', '5.25x8', '5.5x8.5', '6x9', '6.14x9.21', '7x10', '8.5x11', '8.5x8.5'];
 const ALLOWED_HEADING_GAPS = ['compact', 'normal', 'spacious', 'dramatic'];
@@ -39,6 +50,12 @@ ${brief ? `- Author's design brief: ${brief}` : ''}
 """
 ${(sample || '').slice(0, 4000)}
 """
+
+IMPORTANT — non-Latin and accented languages: if the book (or the design brief)
+is written in Vietnamese or any language with diacritics, you MUST pick
+bodyFont and headingFont ONLY from this diacritic-safe list:
+${JSON.stringify(VIETNAMESE_SAFE_FONTS)}
+(other fonts in the list below render Vietnamese diacritics incorrectly).
 
 Return JSON with EXACTLY these keys and allowed values:
 {
