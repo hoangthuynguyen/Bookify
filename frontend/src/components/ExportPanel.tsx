@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAppStore } from '../store/appStore';
-import { callGas } from '../hooks/useGasBridge';
+import { callGas, warmupBackend } from '../hooks/useGasBridge';
 import {
   PRINT_SIZES, BINDING_INFO, GENRE_RECOMMENDATIONS,
   getSizesByBinding, getCategoriesForBinding, formatDimension,
@@ -49,6 +49,10 @@ export function ExportPanel() {
     measurementUnit, setMeasurementUnit,
     isExporting, setIsExporting,
     setError,
+    headingGap, setHeadingGap,
+    chapterStartPosition,
+    largePrint, setLargePrint,
+    dropCapLines, dropCapStyle,
   } = useAppStore();
 
   const [results, setResults] = useState<Record<string, ExportResult>>({});
@@ -71,6 +75,16 @@ export function ExportPanel() {
   // Preflight
   const [preflightWarnings, setPreflightWarnings] = useState<any[]>([]);
   const [runningPreflight, setRunningPreflight] = useState(false);
+  const [exportProgress, setExportProgress] = useState<string>('');
+  const [backendReady, setBackendReady] = useState<boolean | null>(null);
+
+  // Warm up the backend when the export panel mounts (prevents cold-start timeout)
+  useEffect(() => {
+    warmupBackend().then(ok => {
+      setBackendReady(ok);
+      if (!ok) console.warn('[Export] Backend warmup failed — server may be starting');
+    });
+  }, []);
 
   // Derived data
   const availableSizes = getSizesByBinding(bindingType);
@@ -84,6 +98,12 @@ export function ExportPanel() {
     setError(null);
 
     try {
+      // Ensure backend is warm before starting exports
+      if (backendReady === false || backendReady === null) {
+        setExportProgress('Waking up server...');
+        await warmupBackend();
+      }
+
       const methodMap: Record<string, string> = {
         epub: 'exportEpub', pdf: 'exportPdf', docx: 'exportDocx',
         kfx: 'exportKfx', azw3: 'exportAzw3', azw: 'exportAzw', mobi: 'exportMobi',
@@ -94,6 +114,8 @@ export function ExportPanel() {
         theme: {}, dropCaps, sceneBreakSymbol: sceneBreak,
         trimSize, mirrorMargins, orphanControl, platform, runningHeader,
         bindingType, genre,
+        headingGap, chapterStartPosition, largePrint,
+        dropCapLines, dropCapStyle,
         metadataOverrides: {
           title: title.trim() || undefined,
           author: author.trim() || undefined,
@@ -102,40 +124,36 @@ export function ExportPanel() {
         },
       };
 
-      const exportPromises = exportFormats.map(async (fmt) => {
-        const method = methodMap[fmt];
-        if (method) {
-          try {
-            const res = await callGas<ExportResult>(method, settings);
-            return { fmt, result: { ...res, format: fmt } };
-          } catch (err) {
-            return { fmt, error: `${fmt.toUpperCase()} failed: ${err instanceof Error ? err.message : String(err)}` };
-          }
-        }
-        return { fmt, error: `Unknown format: ${fmt}` };
-      });
-
-      const exportOutcomes = await Promise.all(exportPromises);
-
       const newResults: Record<string, ExportResult> = {};
       const errors: string[] = [];
 
-      exportOutcomes.forEach(outcome => {
-        if (outcome.error) {
-          errors.push(outcome.error);
-        } else if (outcome.result) {
-          newResults[outcome.fmt] = outcome.result;
+      // Export sequentially to avoid overwhelming GAS + backend
+      for (const fmt of exportFormats) {
+        const method = methodMap[fmt];
+        if (!method) {
+          errors.push(`Unknown format: ${fmt}`);
+          continue;
         }
-      });
+        setExportProgress(`Exporting ${fmt.toUpperCase()}...`);
+        try {
+          const res = await callGas<ExportResult>(method, settings);
+          newResults[fmt] = { ...res, format: fmt };
+        } catch (err) {
+          errors.push(`${fmt.toUpperCase()} failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
 
       setResults(newResults);
-      if (errors.length > 0) {
-        setError(`Export completed with errors:\n${errors.join('\n')}`);
+      if (errors.length > 0 && Object.keys(newResults).length > 0) {
+        setError(`Some exports completed with errors:\n${errors.join('\n')}`);
+      } else if (errors.length > 0) {
+        setError(`Export failed:\n${errors.join('\n')}`);
       }
     } catch (err) {
       setError(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setIsExporting(false);
+      setExportProgress('');
     }
   }
 
@@ -143,8 +161,20 @@ export function ExportPanel() {
     setRunningPreflight(true);
     setPreflightWarnings([]);
     try {
-      const warnings = await callGas<any[]>('runPreflightCheck', { platform });
-      setPreflightWarnings(warnings?.length ? warnings : [{ level: 'success', message: 'All checks passed! Ready for print.' }]);
+      // Determine which store to check based on platform
+      const storeMap: Record<string, string> = {
+        generic: 'kdp', amazon: 'kdp', apple: 'ingram', kobo: 'ingram',
+      };
+      const storeId = storeMap[platform] || 'kdp';
+      const result = await callGas<{ success: boolean; checks: any[] }>('runStorePreflight', storeId);
+      if (result?.checks?.length) {
+        setPreflightWarnings(result.checks.map((c: any) => ({
+          level: c.status === 'ok' ? 'success' : c.status,
+          message: c.text,
+        })));
+      } else {
+        setPreflightWarnings([{ level: 'success', message: 'All checks passed! Ready for print.' }]);
+      }
     } catch (e) {
       setPreflightWarnings([{ level: 'error', message: 'Check failed: ' + String(e) }]);
     } finally {
@@ -288,6 +318,7 @@ export function ExportPanel() {
         <div className="card-section space-y-2.5 border-l-[3px] border-l-violet-400 animate-slide-up">
           <p className="section-title text-violet-500">EPUB Options</p>
           <ToggleRow label="Drop caps at chapter start" checked={dropCaps} onChange={setDropCaps} />
+          <ToggleRow label="Large print (16pt+, high legibility)" checked={largePrint} onChange={setLargePrint} />
           <div>
             <label className="text-[11px] text-gray-500 block mb-1">Scene break symbol</label>
             <select value={sceneBreak} onChange={e => setSceneBreak(e.target.value)} className="select-field">
@@ -391,11 +422,23 @@ export function ExportPanel() {
             </select>
           </div>
 
+          {/* ── Chapter Heading Gap ── */}
+          <div>
+            <label className="text-[11px] text-gray-500 block mb-1">Chapter heading gap</label>
+            <select value={headingGap} onChange={e => setHeadingGap(e.target.value as any)} className="select-field">
+              <option value="compact">Compact — minimal space above chapter titles</option>
+              <option value="normal">Normal — classic book spacing</option>
+              <option value="spacious">Spacious — generous breathing room</option>
+              <option value="dramatic">Dramatic — title sinks deep into the page</option>
+            </select>
+          </div>
+
           {/* ── Print Toggles ── */}
           <div className="space-y-1.5">
             <ToggleRow label="Mirror margins (binding)" checked={mirrorMargins} onChange={setMirrorMargins} />
             <ToggleRow label="Orphan/widow control" checked={orphanControl} onChange={setOrphanControl} />
             <ToggleRow label="Drop caps" checked={dropCaps} onChange={setDropCaps} />
+            <ToggleRow label="Large print edition (16pt+)" checked={largePrint} onChange={setLargePrint} />
           </div>
         </div>
       )}
@@ -482,11 +525,17 @@ export function ExportPanel() {
 
       {/* ─── Export Actions ─── */}
       <div className="space-y-2">
+        {backendReady === false && (
+          <div className="p-2 bg-amber-50 text-amber-700 rounded-lg text-[10px] flex items-center gap-1.5 border border-amber-200 animate-slide-up">
+            <span className="text-sm">⏳</span>
+            <span>Server is waking up. First export may take a bit longer.</span>
+          </div>
+        )}
         <button onClick={handleExport} disabled={isExporting || exportFormats.length === 0} className="btn-primary !py-3 !text-sm !rounded-xl w-full flex items-center justify-center">
           {isExporting ? (
             <>
               <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-              Generating Files…
+              {exportProgress || 'Generating Files…'}
             </>
           ) : (
             <>

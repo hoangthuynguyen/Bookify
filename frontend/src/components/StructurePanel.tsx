@@ -79,7 +79,7 @@ function ChapterList() {
       return;
     }
     try {
-      await callGas('renameHeading', heading.index, editText.trim());
+      await callGas('renameHeading', heading.text, editText.trim());
       setHeadings(prev => prev.map(h => h.index === heading.index ? { ...h, text: editText.trim() } : h));
     } catch { /* silent */ }
     finally { setEditingIndex(null); }

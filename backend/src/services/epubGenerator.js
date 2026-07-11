@@ -28,10 +28,6 @@ async function generateEpub(docContent, metadata, theme, settings) {
     author: metadata.author || 'Unknown Author',
     language: metadata.language || 'en',
     css: themeCSS,
-    content: chapters.map(ch => ({
-      title: ch.title,
-      data: ch.html,
-    })),
     tocTitle: 'Table of Contents',
     appendChapterTitles: false,
     verbose: false,
@@ -42,7 +38,14 @@ async function generateEpub(docContent, metadata, theme, settings) {
     epubOptions.identifier = metadata.isbn;
   }
 
-  const epubBuffer = await epub(epubOptions);
+  // epub-gen-memory v1.1.2 uses two-argument form: epub(options, contentArray)
+  // Each content item must have { title, content } (NOT { title, data })
+  const epubContent = chapters.map(ch => ({
+    title: ch.title,
+    content: ch.html,
+  }));
+
+  const epubBuffer = await epub(epubOptions, epubContent);
 
   const safeTitle = (metadata.title || 'book')
     .replace(/[^a-zA-Z0-9\s]/g, '')
@@ -100,13 +103,29 @@ function parseChapters(html, includeChapters) {
 /**
  * Generate CSS from theme config for EPUB
  */
+// Chapter heading gap presets (margins around h1 chapter titles)
+const HEADING_GAPS = {
+  compact: { top: '0.8em', bottom: '0.6em' },
+  normal: { top: '2em', bottom: '1em' },
+  spacious: { top: '3.5em', bottom: '1.8em' },
+  dramatic: { top: '5em', bottom: '2.2em' },
+};
+
 function generateThemeCSS(theme, settings) {
   const fontFamily = theme.fontFamily || 'Georgia';
   const headingFont = theme.headingFont || fontFamily;
-  const fontSize = theme.fontSize || '11pt';
-  const lineHeight = theme.lineHeight || 1.6;
+  let fontSize = theme.fontSize || '11pt';
+  let lineHeight = theme.lineHeight || 1.6;
   const margins = theme.margins || {};
   const colorAccent = theme.colorAccent || '#333333';
+  const headingGap = HEADING_GAPS[settings.headingGap] || HEADING_GAPS.normal;
+
+  // Large print: enforce 16pt+ base size and taller line height
+  if (settings.largePrint) {
+    const basePt = parseFloat(fontSize) || 11;
+    fontSize = `${Math.max(basePt, 16)}pt`;
+    lineHeight = Math.max(parseFloat(lineHeight) || 1.6, 1.8);
+  }
 
   let css = `
 /* === Base Typography === */
@@ -138,7 +157,7 @@ h1 {
   font-size: 2em;
   font-weight: bold;
   text-align: center;
-  margin: 2em 0 1em 0;
+  margin: ${headingGap.top} 0 ${headingGap.bottom} 0;
   color: ${colorAccent};
   page-break-before: always;
 }
@@ -186,6 +205,33 @@ blockquote {
 ul, ol { margin: 0.5em 0; padding-left: 2em; }
 li { margin-bottom: 0.3em; }
 
+/* === Tables === */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+  font-size: 0.95em;
+}
+th {
+  background: #f2f2f2;
+  font-weight: bold;
+  text-align: left;
+}
+td, th {
+  padding: 0.4em 0.6em;
+  border: 1px solid #ccc;
+  vertical-align: top;
+}
+/* Reflowable readers: allow horizontal squeeze instead of overflow */
+table, thead, tbody, tr { max-width: 100%; }
+caption {
+  caption-side: bottom;
+  font-size: 0.85em;
+  font-style: italic;
+  color: #666;
+  padding: 0.4em 0;
+}
+
 /* === Scene Breaks === */
 .scene-break {
   text-align: center;
@@ -209,19 +255,23 @@ hr::after {
 }
 `;
 
-  // Drop Caps
+  // Drop Caps — size scales with lines spanned; style picks font/color
   if (settings.dropCaps) {
+    const dropSize = { 2: '2.4em', 3: '3.5em', 4: '4.7em' }[settings.dropCapLines] || '3.5em';
+    const style = settings.dropCapStyle || 'classic';
+    const dcColor = style === 'classic' ? '#1a1a1a' : colorAccent;
+    const dcFont = style === 'ornate' ? headingFont : fontFamily;
     css += `
-/* === Drop Caps === */
+/* === Drop Caps (${style}) === */
 h1 + p::first-letter,
 .chapter-start::first-letter {
   float: left;
-  font-size: 3.5em;
+  font-size: ${dropSize};
   line-height: 0.8;
   padding: 0.1em 0.1em 0 0;
   font-weight: bold;
-  color: ${colorAccent};
-  font-family: '${headingFont}', serif;
+  color: ${dcColor};
+  font-family: '${dcFont}', serif;
 }
 `;
   }

@@ -1,10 +1,22 @@
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 const path = require('path');
 
 // =============================================================================
 // PDF Generator Service (uses WeasyPrint via Python subprocess)
 // WeasyPrint uses ~100MB RAM vs Puppeteer's ~1.5GB - fits Render.com free tier
 // =============================================================================
+
+// Check once at startup whether python3 + weasyprint are available
+let pythonAvailable = false;
+try {
+  execSync('which python3', { stdio: 'ignore', timeout: 3000 });
+  const pyScript = path.join(__dirname, '../../python/pdf_render.py');
+  const fs = require('fs');
+  pythonAvailable = fs.existsSync(pyScript);
+  if (pythonAvailable) console.log('[PDF] WeasyPrint renderer available');
+} catch {
+  console.log('[PDF] python3 not found — will use HTML-to-PDF fallback');
+}
 
 // Trim size definitions: name -> { width_mm, height_mm, binding[] }
 const TRIM_SIZES = {
@@ -30,7 +42,7 @@ const TRIM_SIZES = {
 };
 
 /**
- * Generate a print-ready PDF using WeasyPrint
+ * Generate a print-ready PDF using WeasyPrint (or HTML fallback)
  * @param {string} docContent - HTML content of the book
  * @param {string} trimSize - Trim size key (e.g. '6x9')
  * @param {object} theme - Theme configuration
@@ -40,50 +52,75 @@ const TRIM_SIZES = {
 async function generatePdf(docContent, trimSize, theme, settings) {
   const size = TRIM_SIZES[trimSize] || TRIM_SIZES['6x9'];
 
+  // Skip Python spawn entirely if not available — go straight to fallback
+  if (!pythonAvailable) {
+    throw new Error('WeasyPrint not available');
+  }
+
   return new Promise((resolve, reject) => {
     const pythonScript = path.join(__dirname, '../../python/pdf_render.py');
-    const pythonProcess = spawn('python3', [pythonScript], {
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    let pythonProcess;
+
+    try {
+      pythonProcess = spawn('python3', [pythonScript], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+    } catch (spawnErr) {
+      pythonAvailable = false; // Mark as unavailable for future calls
+      reject(new Error(`Failed to start PDF renderer: ${spawnErr.message}`));
+      return;
+    }
 
     let stdout = '';
     let stderr = '';
     let timer;
+    let settled = false;
+
+    const settle = (fn) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        fn();
+      }
+    };
 
     pythonProcess.stdout.on('data', (data) => { stdout += data.toString(); });
     pythonProcess.stderr.on('data', (data) => { stderr += data.toString(); });
 
     pythonProcess.on('error', (err) => {
-      clearTimeout(timer);
-      reject(new Error(`Failed to start PDF renderer: ${err.message}`));
+      settle(() => {
+        pythonAvailable = false; // Mark as unavailable for future calls
+        reject(new Error(`Failed to start PDF renderer: ${err.message}`));
+      });
     });
 
     pythonProcess.on('close', (code) => {
-      clearTimeout(timer);
-      if (code !== 0) {
-        console.error('WeasyPrint stderr:', stderr);
-        reject(new Error(`PDF render failed (exit code ${code}): ${stderr.substring(0, 500)}`));
-        return;
-      }
+      settle(() => {
+        if (code !== 0) {
+          console.error('WeasyPrint stderr:', stderr);
+          reject(new Error(`PDF render failed (exit code ${code}): ${stderr.substring(0, 500)}`));
+          return;
+        }
 
-      try {
-        const result = JSON.parse(stdout);
-        const buffer = Buffer.from(result.pdf, 'base64');
+        try {
+          const result = JSON.parse(stdout);
+          const buffer = Buffer.from(result.pdf, 'base64');
 
-        const safeTitle = (theme.title || 'book')
-          .replace(/[^a-zA-Z0-9\s]/g, '')
-          .replace(/\s+/g, '_')
-          .substring(0, 50);
+          const safeTitle = (theme.title || 'book')
+            .replace(/[^a-zA-Z0-9\s]/g, '')
+            .replace(/\s+/g, '_')
+            .substring(0, 50);
 
-        resolve({
-          buffer,
-          filename: `${safeTitle}_${trimSize}.pdf`,
-          pageCount: result.page_count || estimatePageCount(buffer.length),
-          trimSize: size.label,
-        });
-      } catch (parseError) {
-        reject(new Error(`Failed to parse PDF output: ${parseError.message}`));
-      }
+          resolve({
+            buffer,
+            filename: `${safeTitle}_${trimSize}.pdf`,
+            pageCount: result.page_count || estimatePageCount(buffer.length),
+            trimSize: size.label,
+          });
+        } catch (parseError) {
+          reject(new Error(`Failed to parse PDF output: ${parseError.message}`));
+        }
+      });
     });
 
     // Send input data to Python process via stdin
@@ -113,11 +150,13 @@ async function generatePdf(docContent, trimSize, theme, settings) {
     pythonProcess.stdin.write(input);
     pythonProcess.stdin.end();
 
-    // Timeout after 120 seconds - cleared on process completion to prevent leak
+    // Timeout after 60 seconds (local process shouldn't need more)
     timer = setTimeout(() => {
-      pythonProcess.kill('SIGTERM');
-      reject(new Error('PDF generation timed out after 120 seconds'));
-    }, 120000);
+      settle(() => {
+        pythonProcess.kill('SIGTERM');
+        reject(new Error('PDF generation timed out after 60 seconds'));
+      });
+    }, 60000);
   });
 }
 

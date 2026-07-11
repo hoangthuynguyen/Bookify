@@ -200,8 +200,14 @@ function generateHtmlPdfFallback(docContent, trimSize, theme, settings, metadata
   const title = metadata.title || 'Untitled Book';
   const author = metadata.author || '';
   const fontFamily = theme.fontFamily || 'Georgia, serif';
-  const fontSize = theme.fontSize || '11pt';
-  const lineHeight = theme.lineHeight || 1.6;
+  let fontSize = theme.fontSize || '11pt';
+  let lineHeight = theme.lineHeight || 1.6;
+
+  // Large print: enforce 16pt+ base size and taller line height
+  if (settings.largePrint) {
+    fontSize = `${Math.max(parseFloat(fontSize) || 11, 16)}pt`;
+    lineHeight = Math.max(parseFloat(lineHeight) || 1.6, 1.8);
+  }
 
   const htmlDocument = `<!DOCTYPE html>
 <html lang="en">

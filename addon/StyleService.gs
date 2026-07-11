@@ -780,3 +780,216 @@ function globalReplaceText(findText, replaceText) {
     throw new Error('Replace failed: ' + err.message);
   }
 }
+
+// =============================================================================
+// Styled Table of Contents
+// =============================================================================
+
+/**
+ * Insert a styled Table of Contents at the beginning of the document.
+ * Creates a visually formatted TOC with dot leaders and indented entries.
+ * @returns {{ success: boolean, count: number }}
+ */
+function insertStyledToC() {
+  try {
+    var doc = DocumentApp.getActiveDocument();
+    var body = doc.getBody();
+    var headings = extractHeadings_(body);
+    
+    if (headings.length === 0) {
+      throw new Error('No headings found. Use Heading 1/2/3 styles to define chapters and sections.');
+    }
+    
+    // Insert at the beginning of the document
+    var insertIndex = 0;
+    
+    // Add styled TOC heading
+    var tocHeading = body.insertParagraph(insertIndex, 'Contents');
+    tocHeading.setHeading(DocumentApp.ParagraphHeading.HEADING1);
+    tocHeading.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+    tocHeading.editAsText().setFontSize(22);
+    tocHeading.editAsText().setBold(true);
+    tocHeading.editAsText().setForegroundColor('#333333');
+    tocHeading.setSpacingBefore(60);
+    tocHeading.setSpacingAfter(30);
+    insertIndex++;
+    
+    // Add a decorative separator line
+    var separator = body.insertParagraph(insertIndex, '———');
+    separator.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+    separator.editAsText().setFontSize(10);
+    separator.editAsText().setForegroundColor('#cccccc');
+    separator.setSpacingAfter(20);
+    insertIndex++;
+    
+    // Insert each heading entry with styling based on level
+    for (var i = 0; i < headings.length; i++) {
+      var h = headings[i];
+      var indent = (h.level - 1) * 24;
+      
+      var entryText = h.text;
+      
+      var entryPara = body.insertParagraph(insertIndex, entryText);
+      
+      var entryStyle = entryPara.editAsText();
+      
+      if (h.level === 1) {
+        entryStyle.setFontSize(12);
+        entryStyle.setBold(true);
+        entryStyle.setForegroundColor('#1a1a1a');
+        entryPara.setSpacingBefore(8);
+        entryPara.setSpacingAfter(4);
+      } else if (h.level === 2) {
+        entryStyle.setFontSize(11);
+        entryStyle.setBold(false);
+        entryStyle.setItalic(false);
+        entryStyle.setForegroundColor('#444444');
+        entryPara.setSpacingBefore(3);
+        entryPara.setSpacingAfter(2);
+      } else {
+        entryStyle.setFontSize(10);
+        entryStyle.setBold(false);
+        entryStyle.setItalic(true);
+        entryStyle.setForegroundColor('#777777');
+        entryPara.setSpacingBefore(2);
+        entryPara.setSpacingAfter(2);
+      }
+      
+      entryPara.setIndentStart(indent);
+      insertIndex++;
+    }
+    
+    // Add a page break after the TOC
+    var breakPara = body.insertParagraph(insertIndex, '');
+    breakPara.setPageBreakBefore(true);
+    
+    return { success: true, count: headings.length };
+  } catch (error) {
+    throw new Error('Insert styled TOC failed: ' + error.message);
+  }
+}
+
+// =============================================================================
+// Rich Fonts — multiple fonts in a single chapter
+// =============================================================================
+
+/**
+ * Apply a font family (and optional size) to the currently selected text.
+ * Enables mixing multiple fonts within a single chapter without sub-headings.
+ * The font carries through to EPUB/PDF exports via inline styling.
+ * @param {string} fontFamily - e.g. 'Garamond'
+ * @param {number|null} fontSize - optional size in pt; null keeps current size
+ * @returns {{ success: boolean, message: string }}
+ */
+function applyFontToSelection(fontFamily, fontSize) {
+  try {
+    var doc = DocumentApp.getActiveDocument();
+    var selection = doc.getSelection();
+
+    if (!selection) {
+      throw new Error('Please select some text first, then click Apply.');
+    }
+
+    var elements = selection.getRangeElements();
+    var applied = 0;
+
+    for (var i = 0; i < elements.length; i++) {
+      var rangeEl = elements[i];
+      var el = rangeEl.getElement();
+      if (el.editAsText === undefined) continue;
+
+      var text = el.editAsText();
+      var start, end;
+
+      if (rangeEl.isPartial()) {
+        start = rangeEl.getStartOffset();
+        end = rangeEl.getEndOffsetInclusive();
+      } else {
+        var len = text.getText().length;
+        if (len === 0) continue;
+        start = 0;
+        end = len - 1;
+      }
+
+      text.setFontFamily(start, end, fontFamily);
+      if (fontSize) {
+        text.setFontSize(start, end, fontSize);
+      }
+      applied++;
+    }
+
+    if (applied === 0) {
+      throw new Error('No text found in the selection.');
+    }
+
+    return {
+      success: true,
+      message: 'Font "' + fontFamily + '" applied to ' + applied + ' text segment(s).',
+    };
+  } catch (error) {
+    throw new Error('Apply font failed: ' + error.message);
+  }
+}
+
+// =============================================================================
+// Two-Page Image Spread
+// =============================================================================
+
+/**
+ * Toggle the [TWO_PAGE_SPREAD] tag on the selected image.
+ * On PDF export the image is split across two facing pages:
+ * left half on the verso page, right half on the recto page.
+ * @returns {{ success: boolean, message: string }}
+ */
+function toggleImageTwoPageSpread() {
+  try {
+    var doc = DocumentApp.getActiveDocument();
+    var cursor = doc.getCursor();
+    var selection = doc.getSelection();
+
+    var image = null;
+
+    if (selection) {
+      var elements = selection.getRangeElements();
+      for (var i = 0; i < elements.length; i++) {
+        var el = elements[i].getElement();
+        if (el.getType() === DocumentApp.ElementType.INLINE_IMAGE) {
+          image = el.asInlineImage();
+          break;
+        }
+      }
+    }
+
+    if (!image && cursor) {
+      var element = cursor.getElement();
+      if (element.getType() === DocumentApp.ElementType.INLINE_IMAGE) {
+        image = element.asInlineImage();
+      } else if (element.getType() === DocumentApp.ElementType.PARAGRAPH) {
+        var para = element.asParagraph();
+        for (var j = 0; j < para.getNumChildren(); j++) {
+          if (para.getChild(j).getType() === DocumentApp.ElementType.INLINE_IMAGE) {
+            image = para.getChild(j).asInlineImage();
+            break;
+          }
+        }
+      }
+    }
+
+    if (!image) throw new Error('Please select an image or place cursor next to it first.');
+
+    var altTitle = image.getAltTitle() || '';
+    var isSpread = altTitle.indexOf('[TWO_PAGE_SPREAD]') !== -1;
+
+    if (isSpread) {
+      image.setAltTitle(altTitle.replace('[TWO_PAGE_SPREAD]', '').trim());
+      return { success: true, message: 'Two-page spread removed from image.' };
+    } else {
+      // Two-page spread replaces full-bleed if both were set
+      var cleaned = altTitle.replace('[FULL_BLEED]', '').trim();
+      image.setAltTitle((cleaned + ' [TWO_PAGE_SPREAD]').trim());
+      return { success: true, message: 'Image set to Two-Page Spread! It will span two facing pages in the PDF.' };
+    }
+  } catch (error) {
+    throw new Error('Two-page spread failed: ' + error.message);
+  }
+}

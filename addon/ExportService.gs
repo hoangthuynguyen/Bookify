@@ -69,14 +69,37 @@ function getDocumentContent() {
 // =============================================================================
 
 /**
- * Calls the Bookify backend API.
+ * Calls the Bookify backend API with warmup and retry logic.
+ * Handles Render.com cold starts by pinging /health first.
  * @param {string} endpoint - API endpoint (e.g., '/export/epub')
  * @param {object} payload - Request body
  * @returns {object} Parsed JSON response
  */
 function callExportAPI(endpoint, payload) {
-  var token = ScriptApp.getOAuthToken();
+  // Step 1: Warmup ping — wake up the server if it's sleeping (Render.com free tier)
+  try {
+    var warmup = UrlFetchApp.fetch(CONFIG.API_BASE_URL + '/health', {
+      method: 'get',
+      muteHttpExceptions: true,
+      // Short timeout: if server is already warm, this returns instantly
+    });
+    var warmupStatus = warmup.getResponseCode();
+    if (warmupStatus !== 200) {
+      // Server might be starting up — wait a moment and try again
+      Utilities.sleep(3000);
+      UrlFetchApp.fetch(CONFIG.API_BASE_URL + '/health', {
+        method: 'get',
+        muteHttpExceptions: true,
+      });
+    }
+  } catch (e) {
+    // Warmup failed — server might be cold starting, continue anyway
+    Logger.log('[Export] Warmup ping failed: ' + e.message + ' — will retry on main request');
+    Utilities.sleep(5000); // Wait 5 seconds for server to wake
+  }
 
+  // Step 2: Make the actual API call with retry logic
+  var token = ScriptApp.getOAuthToken();
   var options = {
     method: 'post',
     contentType: 'application/json',
@@ -87,21 +110,58 @@ function callExportAPI(endpoint, payload) {
     muteHttpExceptions: true,
   };
 
-  var response = UrlFetchApp.fetch(CONFIG.API_BASE_URL + endpoint, options);
-  var status = response.getResponseCode();
-  var body = response.getContentText();
+  var maxRetries = 2;
+  var lastError = null;
 
-  if (status === 429) {
-    throw new Error('Too many exports. Please wait 1 minute and try again.');
+  for (var attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      var response = UrlFetchApp.fetch(CONFIG.API_BASE_URL + endpoint, options);
+      var status = response.getResponseCode();
+      var body = response.getContentText();
+
+      if (status === 429) {
+        throw new Error('Too many exports. Please wait 1 minute and try again.');
+      }
+
+      if (status === 502 || status === 503 || status === 504) {
+        // Server error (cold start / gateway timeout) — retry after delay
+        lastError = 'Server temporarily unavailable (HTTP ' + status + ')';
+        if (attempt < maxRetries) {
+          Logger.log('[Export] Attempt ' + (attempt + 1) + ' got HTTP ' + status + ', retrying...');
+          Utilities.sleep((attempt + 1) * 5000); // 5s, 10s backoff
+          continue;
+        }
+        throw new Error(lastError + '. Please try again in 30 seconds.');
+      }
+
+      if (status !== 200) {
+        var errorData;
+        try { errorData = JSON.parse(body); } catch (e) { errorData = { error: body }; }
+        throw new Error(errorData.error || 'Export failed (HTTP ' + status + ')');
+      }
+
+      return JSON.parse(body);
+
+    } catch (fetchError) {
+      lastError = fetchError.message;
+      // Only retry on network/timeout errors, not on auth or validation errors
+      if (attempt < maxRetries && (
+        lastError.indexOf('timed out') !== -1 ||
+        lastError.indexOf('temporarily unavailable') !== -1 ||
+        lastError.indexOf('502') !== -1 ||
+        lastError.indexOf('503') !== -1 ||
+        lastError.indexOf('504') !== -1 ||
+        lastError.indexOf('Address unavailable') !== -1
+      )) {
+        Logger.log('[Export] Attempt ' + (attempt + 1) + ' failed: ' + lastError + ', retrying...');
+        Utilities.sleep((attempt + 1) * 5000);
+        continue;
+      }
+      throw fetchError;
+    }
   }
 
-  if (status !== 200) {
-    var errorData;
-    try { errorData = JSON.parse(body); } catch (e) { errorData = { error: body }; }
-    throw new Error(errorData.error || 'Export failed (HTTP ' + status + ')');
-  }
-
-  return JSON.parse(body);
+  throw new Error('Export failed after multiple retries: ' + lastError);
 }
 
 // =============================================================================
@@ -134,6 +194,10 @@ function exportEpub(settings) {
         dropCaps: settings.dropCaps || false,
         sceneBreakSymbol: settings.sceneBreakSymbol || '* * *',
         includeChapters: settings.includeChapters || [],
+        headingGap: settings.headingGap || 'normal',
+        largePrint: settings.largePrint || false,
+        dropCapLines: settings.dropCapLines || 3,
+        dropCapStyle: settings.dropCapStyle || 'classic',
         epubStartPage: settings.epubStartPage || 'right',
       },
     });
@@ -165,6 +229,10 @@ function exportAzw3(settings) {
         dropCaps: settings.dropCaps || false,
         sceneBreakSymbol: settings.sceneBreakSymbol || '* * *',
         includeChapters: settings.includeChapters || [],
+        headingGap: settings.headingGap || 'normal',
+        largePrint: settings.largePrint || false,
+        dropCapLines: settings.dropCapLines || 3,
+        dropCapStyle: settings.dropCapStyle || 'classic',
       },
     });
     return result;
@@ -194,6 +262,10 @@ function exportKfx(settings) {
         dropCaps: settings.dropCaps || false,
         sceneBreakSymbol: settings.sceneBreakSymbol || '* * *',
         includeChapters: settings.includeChapters || [],
+        headingGap: settings.headingGap || 'normal',
+        largePrint: settings.largePrint || false,
+        dropCapLines: settings.dropCapLines || 3,
+        dropCapStyle: settings.dropCapStyle || 'classic',
       },
     });
   } catch (error) {
@@ -222,6 +294,10 @@ function exportAzw(settings) {
         dropCaps: settings.dropCaps || false,
         sceneBreakSymbol: settings.sceneBreakSymbol || '* * *',
         includeChapters: settings.includeChapters || [],
+        headingGap: settings.headingGap || 'normal',
+        largePrint: settings.largePrint || false,
+        dropCapLines: settings.dropCapLines || 3,
+        dropCapStyle: settings.dropCapStyle || 'classic',
       },
     });
   } catch (error) {
@@ -250,6 +326,10 @@ function exportMobi(settings) {
         dropCaps: settings.dropCaps || false,
         sceneBreakSymbol: settings.sceneBreakSymbol || '* * *',
         includeChapters: settings.includeChapters || [],
+        headingGap: settings.headingGap || 'normal',
+        largePrint: settings.largePrint || false,
+        dropCapLines: settings.dropCapLines || 3,
+        dropCapStyle: settings.dropCapStyle || 'classic',
       },
     });
   } catch (error) {
@@ -342,6 +422,11 @@ function exportPdf(settings) {
         dropCaps: settings.dropCaps || false,
         sceneBreakSymbol: settings.sceneBreakSymbol || '* * *',
         runningHeader: settings.runningHeader || 'none', // Supported: 'author_title', 'chapter_title', 'none'
+        headingGap: settings.headingGap || 'normal', // 'compact' | 'normal' | 'spacious' | 'dramatic'
+        chapterStartPosition: settings.chapterStartPosition || 'top', // 'top' | 'middle' | 'bottom'
+        largePrint: settings.largePrint || false,
+        dropCapLines: settings.dropCapLines || 3,
+        dropCapStyle: settings.dropCapStyle || 'classic', // 'classic' | 'accent' | 'ornate'
       },
     });
     return result;

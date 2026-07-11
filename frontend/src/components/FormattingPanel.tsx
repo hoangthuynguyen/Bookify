@@ -1,5 +1,13 @@
 import { useState } from 'react';
 import { callGas } from '../hooks/useGasBridge';
+import { useAppStore } from '../store/appStore';
+
+const RICH_FONTS = [
+  'Georgia', 'Garamond', 'Palatino', 'Baskerville', 'Book Antiqua',
+  'Times New Roman', 'Crimson Text', 'Lora', 'Merriweather', 'PT Serif',
+  'Arial', 'Helvetica', 'Verdana', 'Trebuchet MS', 'Courier New',
+  'Caveat', 'Dancing Script', 'Special Elite',
+];
 
 const SCENE_BREAK_SYMBOLS = [
   '* * *', '~ ~ ~', '- - -',
@@ -32,7 +40,7 @@ const CALLOUT_STYLES = [
   { label: 'Quote', bg: '#F8FAFC', border: '#64748B', text: '#334155', icon: '"' },
 ];
 
-type Section = 'scene-breaks' | 'callout' | 'text-message' | 'chapter-titles' | 'toc' | 'front-matter' | 'drop-caps' | 'image';
+type Section = 'scene-breaks' | 'callout' | 'text-message' | 'chapter-titles' | 'toc' | 'front-matter' | 'drop-caps' | 'image' | 'fonts';
 
 const SECTIONS: { id: Section; label: string; emoji: string }[] = [
   { id: 'scene-breaks', label: 'Scene Breaks', emoji: '✦' },
@@ -43,6 +51,7 @@ const SECTIONS: { id: Section; label: string; emoji: string }[] = [
   { id: 'front-matter', label: 'Front Matter', emoji: '📄' },
   { id: 'drop-caps', label: 'Drop Caps', emoji: 'D' },
   { id: 'image', label: 'Image', emoji: '🖼' },
+  { id: 'fonts', label: 'Rich Fonts', emoji: '🔤' },
 ];
 
 export function FormattingPanel() {
@@ -56,6 +65,13 @@ export function FormattingPanel() {
 
   // Chapter Titles State
   const [chapterData, setChapterData] = useState({ title: 'Chapter 1', subtitle: '', align: 'center' });
+
+  // Rich Fonts (multiple fonts in a single chapter)
+  const [selFont, setSelFont] = useState('Georgia');
+  const [selFontSize, setSelFontSize] = useState<number | ''>('');
+
+  // Drop cap design (shared with export settings via store)
+  const { dropCapLines, setDropCapLines, dropCapStyle, setDropCapStyle } = useAppStore();
 
   async function withStatus<T>(fn: () => Promise<T>, successMsg: string) {
     setLoading(true);
@@ -438,9 +454,59 @@ export function FormattingPanel() {
               <p className="text-[11px] text-gray-500">
                 Apply a drop cap to the first paragraph at the cursor position. Fully rendered in EPUB/PDF exports.
               </p>
+
+              {/* Drop cap height (lines spanned) */}
+              <div>
+                <label className="text-[11px] text-gray-500 block mb-1">Height (lines spanned)</label>
+                <div className="grid grid-cols-3 gap-1">
+                  {[2, 3, 4].map(n => (
+                    <button
+                      key={n}
+                      onClick={() => setDropCapLines(n)}
+                      className={`py-1.5 rounded-md text-[11px] font-semibold border transition-colors
+                        ${dropCapLines === n
+                          ? 'bg-bookify-600 text-white border-bookify-600'
+                          : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}
+                    >
+                      {n} lines
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Drop cap design style */}
+              <div>
+                <label className="text-[11px] text-gray-500 block mb-1">Design style</label>
+                <div className="grid grid-cols-3 gap-1">
+                  {([
+                    { id: 'classic', label: 'Classic', desc: 'Body font, ink black' },
+                    { id: 'accent', label: 'Accent', desc: 'Theme accent color' },
+                    { id: 'ornate', label: 'Ornate', desc: 'Heading font, colored' },
+                  ] as const).map(s => (
+                    <button
+                      key={s.id}
+                      onClick={() => setDropCapStyle(s.id)}
+                      title={s.desc}
+                      className={`py-1.5 rounded-md text-[10px] font-semibold border transition-colors
+                        ${dropCapStyle === s.id
+                          ? 'bg-bookify-600 text-white border-bookify-600'
+                          : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1">Your choice is also applied to EPUB/PDF exports automatically.</p>
+              </div>
+
               <button
                 onClick={() => withStatus(
-                  () => callGas('applyDropCapStyle', { fontSize: 36, color: '#333333' }),
+                  () => callGas('applyDropCapStyle', {
+                    fontSize: 24 + dropCapLines * 6,
+                    color: dropCapStyle === 'classic' ? '#1a1a1a' : '#7c3aed',
+                    lines: dropCapLines,
+                    style: dropCapStyle,
+                  }),
                   'Drop cap applied'
                 )}
                 disabled={loading}
@@ -473,6 +539,71 @@ export function FormattingPanel() {
                 </button>
               </div>
               <p className="text-[10px] text-gray-400 mt-2 text-center">Full bleed makes the image expand to the page edges upon PDF export.</p>
+
+              {/* Two-page spread */}
+              <div className="pt-3 border-t border-gray-100">
+                <p className="text-[11px] text-gray-500 mb-2">
+                  <span className="font-semibold text-gray-600">Two-Page Spread:</span> the image spans two facing pages —
+                  left half prints on the left page, right half on the right page. Best with wide panoramic images.
+                </p>
+                <button
+                  onClick={() => withStatus(
+                    () => callGas('toggleImageTwoPageSpread').then((res: any) => {
+                      if (res && res.message) {
+                        setStatus({ text: res.message, ok: true });
+                      }
+                    }),
+                    'Image format updated!'
+                  )}
+                  disabled={loading}
+                  className="w-full py-2 bg-gradient-to-r from-bookify-600 to-violet-600 text-white rounded-md text-xs font-bold disabled:opacity-50 hover:opacity-90 transition-opacity shadow-sm"
+                >
+                  {loading ? 'Processing...' : 'Toggle Two-Page Spread (PDF)'}
+                </button>
+                <p className="text-[10px] text-gray-400 mt-2 text-center">Tip: use with mirror margins for print-ready spreads.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Rich Fonts — multiple fonts in a single chapter */}
+          {activeSection === 'fonts' && (
+            <div className="space-y-3 p-1">
+              <p className="text-[11px] text-gray-500">
+                Apply a different font to any selected text — mix serif, sans and script fonts within the same
+                chapter without needing sub-headings. Carried through to EPUB &amp; PDF exports.
+              </p>
+              <div>
+                <label className="text-[11px] text-gray-500 block mb-1">Font family</label>
+                <select value={selFont} onChange={e => setSelFont(e.target.value)} className="select-field" style={{ fontFamily: selFont }}>
+                  {RICH_FONTS.map(f => <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] text-gray-500 block mb-1">Font size (optional, pt)</label>
+                <input
+                  type="number" min={6} max={72} placeholder="Keep current size"
+                  value={selFontSize}
+                  onChange={e => setSelFontSize(e.target.value === '' ? '' : Number(e.target.value))}
+                  className="input-field"
+                />
+              </div>
+              {/* Live preview */}
+              <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <p className="text-xs text-gray-600" style={{ fontFamily: selFont, fontSize: selFontSize ? `${Math.min(selFontSize, 24)}px` : undefined }}>
+                  The quick brown fox jumps over the lazy dog — 1234567890
+                </p>
+              </div>
+              <button
+                onClick={() => withStatus(
+                  () => callGas('applyFontToSelection', selFont, selFontSize === '' ? null : selFontSize),
+                  `Font "${selFont}" applied to selection`
+                )}
+                disabled={loading}
+                className="w-full py-2.5 bg-bookify-600 text-white rounded-lg text-xs font-semibold disabled:opacity-50 hover:bg-bookify-700 transition-colors"
+              >
+                {loading ? 'Applying…' : 'Apply Font to Selection'}
+              </button>
+              <p className="text-[10px] text-gray-400 text-center">Select text in your document first, then click apply.</p>
             </div>
           )}
         </div>

@@ -1,10 +1,15 @@
 import { useState } from 'react';
 import { callGas } from '../hooks/useGasBridge';
+import { useAppStore } from '../store/appStore';
 
 // DesignPanel component
 
 export function DesignPanel() {
     const [activeSubTab, setActiveSubTab] = useState<'headers' | 'typesetting' | 'mockup'>('headers');
+    const {
+        chapterStartPosition, setChapterStartPosition,
+        headingGap, setHeadingGap,
+    } = useAppStore();
 
     const [applying, setApplying] = useState(false);
     const [status, setStatus] = useState<{ text: string; ok: boolean } | null>(null);
@@ -116,11 +121,39 @@ export function DesignPanel() {
                             </div>
                             <div className="p-3 border border-gray-100 rounded-lg">
                                 <h5 className="text-xs font-semibold text-gray-700 mb-2">Chapter Position</h5>
-                                <select className="w-full text-xs p-2 border border-gray-200 rounded-md">
-                                    <option>Top Third</option>
-                                    <option>Middle</option>
-                                    <option>Bottom Third</option>
+                                <select
+                                    value={chapterStartPosition}
+                                    onChange={e => setChapterStartPosition(e.target.value as 'top' | 'middle' | 'bottom')}
+                                    className="w-full text-xs p-2 border border-gray-200 rounded-md"
+                                >
+                                    <option value="top">Top Third</option>
+                                    <option value="middle">Middle</option>
+                                    <option value="bottom">Bottom Third</option>
                                 </select>
+                            </div>
+                        </div>
+
+                        <div className="p-3 border border-gray-100 rounded-lg mt-3">
+                            <h5 className="text-xs font-semibold text-gray-700 mb-1">Chapter Heading Gap</h5>
+                            <p className="text-[10px] text-gray-400 mb-2">Controls the whitespace above and below chapter titles in PDF &amp; EPUB exports.</p>
+                            <div className="grid grid-cols-4 gap-1">
+                                {([
+                                    { id: 'compact', label: 'Compact' },
+                                    { id: 'normal', label: 'Normal' },
+                                    { id: 'spacious', label: 'Spacious' },
+                                    { id: 'dramatic', label: 'Dramatic' },
+                                ] as const).map(opt => (
+                                    <button
+                                        key={opt.id}
+                                        onClick={() => setHeadingGap(opt.id)}
+                                        className={`py-1.5 rounded-md text-[10px] font-semibold border transition-colors
+                                            ${headingGap === opt.id
+                                                ? 'bg-bookify-600 text-white border-bookify-600'
+                                                : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                ))}
                             </div>
                         </div>
 

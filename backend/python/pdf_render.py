@@ -8,7 +8,50 @@ Supports 17 trim sizes for KDP/IngramSpark print-on-demand
 import sys
 import json
 import base64
+import re
 from weasyprint import HTML, CSS
+
+
+# Chapter heading gap presets: margins around h1 chapter titles
+HEADING_GAPS = {
+    "compact":  {"top": "1em",   "bottom": "0.8em"},
+    "normal":   {"top": "3em",   "bottom": "1.5em"},
+    "spacious": {"top": "5em",   "bottom": "2.5em"},
+    "dramatic": {"top": "7em",   "bottom": "3em"},
+}
+
+
+def parse_mm(value, default):
+    """Extract numeric mm from strings like '152.4mm'."""
+    try:
+        m = re.match(r"([\d.]+)", str(value))
+        return float(m.group(1)) if m else default
+    except Exception:
+        return default
+
+
+def preprocess_two_page_spreads(html_content, page_w_mm, page_h_mm):
+    """
+    Replace <img alt="...[TWO_PAGE_SPREAD]..."> with two full-bleed pages:
+    the left half of the image on the verso page, the right half on the recto.
+    """
+    pattern = re.compile(
+        r'<img\b(?=[^>]*alt="[^"]*\[TWO_PAGE_SPREAD\][^"]*")[^>]*src="([^"]+)"[^>]*/?>',
+        re.IGNORECASE,
+    )
+
+    def replace(match):
+        src = match.group(1)
+        return (
+            '<div class="spread-page spread-left">'
+            f'<img class="spread-img" src="{src}" alt="" />'
+            '</div>'
+            '<div class="spread-page spread-right">'
+            f'<img class="spread-img spread-img-right" src="{src}" alt="" />'
+            '</div>'
+        )
+
+    return pattern.sub(replace, html_content)
 
 
 def render_pdf(html_content, trim_size, theme, settings):
@@ -44,6 +87,36 @@ def render_pdf(html_content, trim_size, theme, settings):
     running_header = settings.get("runningHeader", "none")
     author = theme.get("author", "")
     title_book = theme.get("title", "")
+
+    # --- Design upgrades ---
+    heading_gap = HEADING_GAPS.get(settings.get("headingGap", "normal"), HEADING_GAPS["normal"])
+    chapter_position = settings.get("chapterStartPosition", "top")  # top | middle | bottom
+    large_print = settings.get("largePrint", False)
+    drop_cap_lines = int(settings.get("dropCapLines", 3) or 3)
+    drop_cap_style = settings.get("dropCapStyle", "classic")  # classic | accent | ornate
+
+    # Large print: enforce accessibility-friendly typography (16pt+, taller lines)
+    if large_print:
+        try:
+            base_pt = float(re.match(r"([\d.]+)", str(font_size)).group(1))
+        except Exception:
+            base_pt = 11.0
+        font_size = f"{max(base_pt, 16.0)}pt"
+        line_height = max(float(line_height or 1.6), 1.8)
+
+    # Chapter start position: push the h1 down the page by a fraction of the
+    # text-block height (page height minus vertical margins, approximated)
+    page_h_mm = parse_mm(height, 228.6)
+    page_w_mm = parse_mm(width, 152.4)
+    if chapter_position == "middle":
+        chapter_offset_css = f"padding-top: {page_h_mm * 0.22:.1f}mm;"
+    elif chapter_position == "bottom":
+        chapter_offset_css = f"padding-top: {page_h_mm * 0.40:.1f}mm;"
+    else:
+        chapter_offset_css = ""
+
+    # Two-page image spreads: split tagged images across two facing pages
+    html_content = preprocess_two_page_spreads(html_content, page_w_mm, page_h_mm)
 
     # =========================================================================
     # Build print CSS
@@ -130,7 +203,8 @@ def render_pdf(html_content, trim_size, theme, settings):
         font-size: 2em;
         font-weight: bold;
         text-align: center;
-        margin: 3em 0 1.5em 0;
+        margin: {heading_gap["top"]} 0 {heading_gap["bottom"]} 0;
+        {chapter_offset_css}
         color: {color_accent};
         page-break-before: always;
         page-break-after: avoid;
@@ -188,6 +262,32 @@ def render_pdf(html_content, trim_size, theme, settings):
         margin: 0;
         object-fit: cover;
     }}
+
+    /* === Two-Page Image Spreads === */
+    /* Each half is a zero-margin page; the image is 2x page width and the
+       right page shifts it left by one page width so the halves line up. */
+    .spread-page {{
+        page: full-bleed;
+        page-break-before: always;
+        page-break-after: always;
+        width: {page_w_mm}mm;
+        height: {page_h_mm}mm;
+        overflow: hidden;
+        margin: 0;
+        padding: 0;
+    }}
+    .spread-img {{
+        width: {page_w_mm * 2}mm;
+        height: {page_h_mm}mm;
+        max-width: none;
+        max-height: none;
+        margin: 0;
+        object-fit: cover;
+        display: block;
+    }}
+    .spread-img-right {{
+        margin-left: -{page_w_mm}mm;
+    }}
     
     /* === Scene Breaks === */
     hr {{
@@ -237,18 +337,29 @@ def render_pdf(html_content, trim_size, theme, settings):
     }
     """
 
-    # Drop Caps
+    # Drop Caps — size scales with lines spanned; style picks font/color
     if drop_caps:
+        # ~1.2em of body text per line spanned
+        drop_size = {2: "2.4em", 3: "3.5em", 4: "4.7em"}.get(drop_cap_lines, "3.5em")
+        if drop_cap_style == "classic":
+            dc_color = "#1a1a1a"
+            dc_font = font_family
+        elif drop_cap_style == "accent":
+            dc_color = color_accent
+            dc_font = font_family
+        else:  # ornate
+            dc_color = color_accent
+            dc_font = heading_font
         page_css += f"""
-    /* === Drop Caps === */
+    /* === Drop Caps ({drop_cap_style}, {drop_cap_lines} lines) === */
     h1 + p::first-letter {{
         float: left;
-        font-size: 3.5em;
+        font-size: {drop_size};
         line-height: 0.8;
         padding: 0.05em 0.1em 0 0;
         font-weight: bold;
-        color: {color_accent};
-        font-family: '{heading_font}', serif;
+        color: {dc_color};
+        font-family: '{dc_font}', serif;
     }}
     """
 

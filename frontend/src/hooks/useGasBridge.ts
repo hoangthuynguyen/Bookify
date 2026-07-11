@@ -4,7 +4,17 @@
  */
 
 let callbackCounter = 0;
-const pendingCallbacks = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
+const pendingCallbacks = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
+
+// Methods that need longer timeouts (export operations involve cold starts + processing)
+const LONG_TIMEOUT_METHODS = new Set([
+  'exportEpub', 'exportPdf', 'exportDocx', 'exportTxt', 'exportHtml',
+  'exportMarkdown', 'exportAzw3', 'exportKfx', 'exportAzw', 'exportMobi',
+  'exportBoxSetEpub',
+]);
+
+const EXPORT_TIMEOUT_MS = 300_000; // 5 minutes for exports (cold start + generation)
+const DEFAULT_TIMEOUT_MS = 120_000; // 2 minutes for regular calls
 
 // Listen for responses from the GAS bridge (Sidebar.html)
 if (typeof window !== 'undefined') {
@@ -14,6 +24,7 @@ if (typeof window !== 'undefined') {
     if (data?.type === 'GAS_RESULT') {
       const cb = pendingCallbacks.get(data.callbackId);
       if (cb) {
+        clearTimeout(cb.timer);
         cb.resolve(data.result);
         pendingCallbacks.delete(data.callbackId);
       }
@@ -22,6 +33,7 @@ if (typeof window !== 'undefined') {
     if (data?.type === 'GAS_ERROR') {
       const cb = pendingCallbacks.get(data.callbackId);
       if (cb) {
+        clearTimeout(cb.timer);
         cb.reject(new Error(data.error || 'Unknown GAS error'));
         pendingCallbacks.delete(data.callbackId);
       }
@@ -42,9 +54,20 @@ if (typeof window !== 'undefined') {
 export function callGas<T>(method: string, ...args: unknown[]): Promise<T> {
   return new Promise((resolve, reject) => {
     const callbackId = `cb_${++callbackCounter}_${Date.now()}`;
+    const timeoutMs = LONG_TIMEOUT_METHODS.has(method) ? EXPORT_TIMEOUT_MS : DEFAULT_TIMEOUT_MS;
+    const timeoutSec = Math.round(timeoutMs / 1000);
+
+    const timer = setTimeout(() => {
+      if (pendingCallbacks.has(callbackId)) {
+        pendingCallbacks.delete(callbackId);
+        reject(new Error(`Request to ${method} timed out after ${timeoutSec} seconds. The server may be waking up from sleep — please try again.`));
+      }
+    }, timeoutMs);
+
     pendingCallbacks.set(callbackId, {
       resolve: resolve as (v: unknown) => void,
       reject,
+      timer,
     });
 
     // Send message to parent (Sidebar.html) which forwards to google.script.run
@@ -57,15 +80,23 @@ export function callGas<T>(method: string, ...args: unknown[]): Promise<T> {
       },
       '*'
     );
-
-    // Timeout after 120s (exports can take a while)
-    setTimeout(() => {
-      if (pendingCallbacks.has(callbackId)) {
-        pendingCallbacks.delete(callbackId);
-        reject(new Error(`Request to ${method} timed out after 120 seconds`));
-      }
-    }, 120000);
   });
+}
+
+/**
+ * Warm up the backend server to avoid cold-start timeouts.
+ * Call this proactively when user opens the addon or navigates to export panel.
+ */
+export async function warmupBackend(): Promise<boolean> {
+  try {
+    const res = await fetch('https://bookify-ixxa.onrender.com/health', {
+      method: 'GET',
+      signal: AbortSignal.timeout(15_000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 /**

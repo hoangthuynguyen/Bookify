@@ -3,6 +3,10 @@ import type { BindingType, MeasurementUnit } from '../data/printSizes';
 
 type Tab = 'export' | 'formatting' | 'themes' | 'tools' | 'structure' | 'previewer' | 'versions' | 'boxset' | 'bible' | 'automation' | 'design' | 'publishing';
 
+export type HeadingGap = 'compact' | 'normal' | 'spacious' | 'dramatic';
+export type ChapterStartPosition = 'top' | 'middle' | 'bottom';
+export type DropCapStyle = 'classic' | 'accent' | 'ornate';
+
 interface AppState {
   activeTab: Tab;
   setActiveTab: (tab: Tab) => void;
@@ -22,6 +26,18 @@ interface AppState {
   setIsExporting: (v: boolean) => void;
   lastExportUrl: string | null;
   setLastExportUrl: (url: string | null) => void;
+
+  // Design settings (shared across panels, included in every export payload)
+  headingGap: HeadingGap;
+  setHeadingGap: (g: HeadingGap) => void;
+  chapterStartPosition: ChapterStartPosition;
+  setChapterStartPosition: (p: ChapterStartPosition) => void;
+  largePrint: boolean;
+  setLargePrint: (v: boolean) => void;
+  dropCapLines: number;
+  setDropCapLines: (n: number) => void;
+  dropCapStyle: DropCapStyle;
+  setDropCapStyle: (s: DropCapStyle) => void;
 
   // Theme state
   selectedThemeId: string | null;
@@ -58,6 +74,17 @@ export const useAppStore = create<AppState>((set) => ({
   setIsExporting: (v) => set({ isExporting: v }),
   lastExportUrl: null,
   setLastExportUrl: (url) => set({ lastExportUrl: url }),
+
+  headingGap: 'normal',
+  setHeadingGap: (g) => set({ headingGap: g }),
+  chapterStartPosition: 'top',
+  setChapterStartPosition: (p) => set({ chapterStartPosition: p }),
+  largePrint: false,
+  setLargePrint: (v) => set({ largePrint: v }),
+  dropCapLines: 3,
+  setDropCapLines: (n) => set({ dropCapLines: n }),
+  dropCapStyle: 'classic',
+  setDropCapStyle: (s) => set({ dropCapStyle: s }),
 
   selectedThemeId: null,
   setSelectedThemeId: (id) => set({ selectedThemeId: id }),
