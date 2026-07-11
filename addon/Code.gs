@@ -24,43 +24,44 @@ const CONFIG = {
 function onOpen(e) {
   try {
     var ui = DocumentApp.getUi();
-    // Add-ons may not create arbitrary top-level menus: createAddonMenu()
-    // places entries under Extensions -> Bookify (works in test deployments
-    // and published add-ons). Fall back to a top-level menu for bound scripts.
-    var menu;
+    // Bound scripts get a top-level "Bookify" menu; add-ons are not allowed
+    // to create top-level menus (addToUi throws), so retry with the
+    // Extensions > add-on menu in that case.
     try {
-      menu = ui.createAddonMenu();
-    } catch (menuErr) {
-      menu = ui.createMenu('Bookify');
+      buildBookifyMenu_(ui.createMenu('Bookify'), ui, e).addToUi();
+    } catch (topLevelErr) {
+      buildBookifyMenu_(ui.createAddonMenu(), ui, e).addToUi();
     }
-
-    menu.addItem('Open Formatter', 'openSidebar');
-
-    if (!e || e.authMode !== ScriptApp.AuthMode.NONE) {
-      menu.addSeparator()
-        .addSubMenu(
-          ui.createMenu('Quick Export')
-            .addItem('Export EPUB', 'quickExportEpub')
-            .addItem('Export PDF', 'quickExportPdf')
-            .addItem('Export DOCX', 'quickExportDocx')
-        )
-        .addSeparator()
-        .addSubMenu(
-          ui.createMenu('Insert')
-            .addItem('Chapter Break', 'insertChapterBreak')
-            .addItem('Scene Break (***)', 'insertDefaultSceneBreak')
-        )
-        .addSeparator()
-        .addItem('Word Count', 'showWordCount')
-        .addItem('Validate for EPUB', 'quickValidate');
-    }
-
-    menu.addToUi();
   } catch (err) {
     // In Workspace Add-on context, DocumentApp.getUi() is not available.
     // This is expected — the add-on uses onHomepage() + CardService instead.
     console.log('onOpen skipped (Workspace Add-on context): ' + err.message);
   }
+}
+
+function buildBookifyMenu_(menu, ui, e) {
+  menu.addItem('Open Formatter', 'openSidebar');
+
+  if (!e || e.authMode !== ScriptApp.AuthMode.NONE) {
+    menu.addSeparator()
+      .addSubMenu(
+        ui.createMenu('Quick Export')
+          .addItem('Export EPUB', 'quickExportEpub')
+          .addItem('Export PDF', 'quickExportPdf')
+          .addItem('Export DOCX', 'quickExportDocx')
+      )
+      .addSeparator()
+      .addSubMenu(
+        ui.createMenu('Insert')
+          .addItem('Chapter Break', 'insertChapterBreak')
+          .addItem('Scene Break (***)', 'insertDefaultSceneBreak')
+      )
+      .addSeparator()
+      .addItem('Word Count', 'showWordCount')
+      .addItem('Validate for EPUB', 'quickValidate');
+  }
+
+  return menu;
 }
 
 /**
