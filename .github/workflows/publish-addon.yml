@@ -22,11 +22,26 @@ jobs:
       - name: Install clasp
         run: npm install -g @google/clasp
 
+      - name: Check clasp secrets
+        id: check
+        run: |
+          if [ -z "${{ secrets.CLASP_CREDENTIALS }}" ] || [ -z "${{ secrets.CLASP_SCRIPT_ID }}" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::CLASP_CREDENTIALS / CLASP_SCRIPT_ID secrets not set - skipping Apps Script push. Run 'clasp login' locally and add ~/.clasprc.json contents as CLASP_CREDENTIALS, plus your script ID as CLASP_SCRIPT_ID."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup clasp credentials
-        run: echo '${{ secrets.CLASP_CREDENTIALS }}' > ~/.clasprc.json
+        if: steps.check.outputs.configured == 'true'
+        run: |
+          echo '${{ secrets.CLASP_CREDENTIALS }}' > ~/.clasprc.json
+          echo '{"scriptId":"${{ secrets.CLASP_SCRIPT_ID }}","rootDir":"."}' > addon/.clasp.json
 
       - name: Push to Apps Script
+        if: steps.check.outputs.configured == 'true'
         run: cd addon && clasp push --force
 
       - name: Verify
+        if: steps.check.outputs.configured == 'true'
         run: echo "Add-on code pushed to Apps Script successfully"
