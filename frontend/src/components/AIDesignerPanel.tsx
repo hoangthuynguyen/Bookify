@@ -6,14 +6,26 @@ import type { HeadingGap, ChapterStartPosition, DropCapStyle } from '../store/ap
 
 const API_URL = (import.meta as unknown as { env: Record<string, string> }).env?.VITE_API_URL || 'https://bookify-ixxa.onrender.com';
 
-type Provider = 'anthropic' | 'openai' | 'gemini' | 'custom';
+type Provider = 'gemini' | 'openrouter' | 'anthropic' | 'openai' | 'custom';
 
 const PROVIDERS: { id: Provider; label: string; keyHint: string; modelPlaceholder: string }[] = [
-  { id: 'anthropic', label: 'Anthropic (Claude)', keyHint: 'sk-ant-...', modelPlaceholder: 'claude-sonnet-5 (default)' },
-  { id: 'openai', label: 'OpenAI (GPT)', keyHint: 'sk-...', modelPlaceholder: 'gpt-4o-mini (default)' },
-  { id: 'gemini', label: 'Google (Gemini)', keyHint: 'AIza...', modelPlaceholder: 'gemini-2.0-flash (default)' },
-  { id: 'custom', label: 'Custom / Local (OpenAI-compatible)', keyHint: 'optional for local models', modelPlaceholder: 'e.g. llama3, mistral' },
+  { id: 'gemini', label: 'Google Gemini (key miễn phí)', keyHint: 'AIza...', modelPlaceholder: 'gemini-2.0-flash (mặc định)' },
+  { id: 'openrouter', label: 'OpenRouter (mọi model)', keyHint: 'sk-or-...', modelPlaceholder: 'openrouter/auto (mặc định)' },
+  { id: 'anthropic', label: 'Anthropic (Claude)', keyHint: 'sk-ant-...', modelPlaceholder: 'claude-sonnet-5 (mặc định)' },
+  { id: 'openai', label: 'OpenAI (GPT)', keyHint: 'sk-...', modelPlaceholder: 'gpt-4o-mini (mặc định)' },
+  { id: 'custom', label: 'Custom / Local (OpenAI-compatible)', keyHint: 'không bắt buộc với local', modelPlaceholder: 'vd: llama3, mistral' },
 ];
+
+interface ProvCfg { apiKey: string; model: string; baseUrl: string }
+type CfgMap = Record<Provider, ProvCfg>;
+
+const EMPTY_CFG: CfgMap = {
+  gemini: { apiKey: '', model: '', baseUrl: '' },
+  openrouter: { apiKey: '', model: '', baseUrl: '' },
+  anthropic: { apiKey: '', model: '', baseUrl: '' },
+  openai: { apiKey: '', model: '', baseUrl: '' },
+  custom: { apiKey: '', model: '', baseUrl: '' },
+};
 
 interface AIDesign {
   themeName: string;
@@ -34,56 +46,104 @@ interface AIDesign {
   runningHeader: string;
 }
 
-const CFG_KEY = 'bookify_ai_designer_cfg';
+const CFG_KEY_V2 = 'bookify_ai_designer_cfg_v2';
+const CFG_KEY_V1 = 'bookify_ai_designer_cfg';
 
 export function AIDesignerPanel() {
   const { genre } = useAppStore();
 
-  const [provider, setProvider] = useState<Provider>('anthropic');
-  const [apiKey, setApiKey] = useState('');
-  const [model, setModel] = useState('');
-  const [baseUrl, setBaseUrl] = useState('');
-  const [rememberKey, setRememberKey] = useState(false);
+  const [provider, setProvider] = useState<Provider>('gemini');
+  const [cfg, setCfg] = useState<CfgMap>(EMPTY_CFG);
+  const [rememberKeys, setRememberKeys] = useState(false);
+  const [autoFallback, setAutoFallback] = useState(true);
   const [brief, setBrief] = useState('');
 
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [design, setDesign] = useState<AIDesign | null>(null);
+  const [designVia, setDesignVia] = useState<string>('');
   const [applied, setApplied] = useState(false);
 
-  // Restore saved config (key only restored if user opted in earlier)
+  // Restore saved config (v2 multi-provider; migrate v1 single-provider)
   useEffect(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem(CFG_KEY) || 'null');
-      if (saved) {
-        if (saved.provider) setProvider(saved.provider);
-        if (saved.model) setModel(saved.model);
-        if (saved.baseUrl) setBaseUrl(saved.baseUrl);
-        if (saved.apiKey) { setApiKey(saved.apiKey); setRememberKey(true); }
+      const v2 = JSON.parse(localStorage.getItem(CFG_KEY_V2) || 'null');
+      if (v2 && v2.cfg) {
+        setCfg({ ...EMPTY_CFG, ...v2.cfg });
+        if (v2.provider) setProvider(v2.provider);
+        if (typeof v2.autoFallback === 'boolean') setAutoFallback(v2.autoFallback);
+        const anyKey = Object.values(v2.cfg as CfgMap).some((c) => c && (c as ProvCfg).apiKey);
+        setRememberKeys(anyKey);
+        return;
+      }
+      const v1 = JSON.parse(localStorage.getItem(CFG_KEY_V1) || 'null');
+      if (v1 && v1.provider) {
+        const migrated = { ...EMPTY_CFG };
+        migrated[v1.provider as Provider] = { apiKey: v1.apiKey || '', model: v1.model || '', baseUrl: v1.baseUrl || '' };
+        setCfg(migrated);
+        setProvider(v1.provider);
+        if (v1.apiKey) setRememberKeys(true);
       }
     } catch { /* ignore corrupt config */ }
   }, []);
 
-  function persistConfig() {
-    const cfg: Record<string, string> = { provider, model, baseUrl };
-    if (rememberKey && apiKey) cfg.apiKey = apiKey;
-    localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
+  function persistConfig(nextCfg: CfgMap, nextProvider: Provider, nextFallback: boolean, remember: boolean) {
+    const toSave: CfgMap = JSON.parse(JSON.stringify(nextCfg));
+    if (!remember) {
+      (Object.keys(toSave) as Provider[]).forEach(p => { toSave[p].apiKey = ''; });
+    }
+    localStorage.setItem(CFG_KEY_V2, JSON.stringify({ cfg: toSave, provider: nextProvider, autoFallback: nextFallback }));
+  }
+
+  function patchCfg(p: Provider, changes: Partial<ProvCfg>) {
+    setCfg(prev => ({ ...prev, [p]: { ...prev[p], ...changes } }));
+  }
+
+  const hasCreds = (p: Provider) =>
+    p === 'custom' ? !!cfg.custom.baseUrl.trim() : !!cfg[p].apiKey.trim();
+
+  const providerLabel = (p: Provider) => PROVIDERS.find(x => x.id === p)?.label.split(' (')[0] || p;
+
+  async function requestDesign(p: Provider, sample: string, title?: string) {
+    const c = cfg[p];
+    const res = await fetch(`${API_URL}/ai/suggest-design`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        provider: p,
+        apiKey: c.apiKey.trim() || undefined,
+        model: c.model.trim() || undefined,
+        baseUrl: p === 'custom' ? c.baseUrl.trim() : undefined,
+        brief: brief.trim() || undefined,
+        metadata: { title, genre },
+        sample,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `Lỗi HTTP ${res.status}`);
+    return data as { design: AIDesign; provider: string; model: string };
   }
 
   async function handleGenerate() {
-    if (!apiKey && provider !== 'custom') {
-      setError('Please enter your API key.');
+    // Build the provider chain: selected first, then any other with a key
+    const chain: Provider[] = [
+      provider,
+      ...PROVIDERS.map(x => x.id).filter(p => p !== provider && autoFallback && hasCreds(p)),
+    ].filter(hasCreds);
+
+    if (chain.length === 0) {
+      setError('Hãy nhập API key cho ít nhất một provider (Gemini có key miễn phí tại aistudio.google.com/apikey).');
       return;
     }
-    setBusy('Reading your document…');
+
+    setBusy('Đang đọc bản thảo…');
     setError(null);
     setDesign(null);
     setApplied(false);
-    persistConfig();
+    persistConfig(cfg, provider, autoFallback, rememberKeys);
 
     try {
       const content = await callGas<{ html: string; metadata: { title?: string } }>('getDocumentContent');
-      // Plain-text sample for the model (strip tags, collapse whitespace)
       const sample = content.html
         .replace(/<style[\s\S]*?<\/style>/gi, '')
         .replace(/<[^>]+>/g, ' ')
@@ -91,23 +151,20 @@ export function AIDesignerPanel() {
         .trim()
         .slice(0, 4000);
 
-      setBusy('Asking the AI designer…');
-      const res = await fetch(`${API_URL}/ai/suggest-design`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          provider,
-          apiKey: apiKey || undefined,
-          model: model.trim() || undefined,
-          baseUrl: provider === 'custom' ? baseUrl.trim() : undefined,
-          brief: brief.trim() || undefined,
-          metadata: { title: content.metadata?.title, genre },
-          sample,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `Request failed (HTTP ${res.status})`);
-      setDesign(data.design);
+      const errors: string[] = [];
+      for (const p of chain) {
+        setBusy(`Đang hỏi ${providerLabel(p)}…${errors.length ? ` (thử lại lần ${errors.length + 1})` : ''}`);
+        try {
+          const data = await requestDesign(p, sample, content.metadata?.title);
+          setDesign(data.design);
+          setDesignVia(`${providerLabel(p)} · ${data.model}`);
+          setBusy(null);
+          return;
+        } catch (err) {
+          errors.push(`${providerLabel(p)}: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+      setError(`Tất cả provider đều lỗi:\n${errors.join('\n')}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -117,7 +174,7 @@ export function AIDesignerPanel() {
 
   async function handleApply() {
     if (!design) return;
-    setBusy('Applying design to your document…');
+    setBusy('Đang áp thiết kế vào tài liệu…');
     setError(null);
     try {
       await applyBookDesign(design);
@@ -130,6 +187,8 @@ export function AIDesignerPanel() {
   }
 
   const providerInfo = PROVIDERS.find(p => p.id === provider)!;
+  const current = cfg[provider];
+  const configuredCount = PROVIDERS.filter(p => hasCreds(p.id)).length;
 
   return (
     <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 space-y-4">
@@ -141,52 +200,73 @@ export function AIDesignerPanel() {
         </div>
         <div>
           <h3 className="text-sm font-bold text-gray-900">AI Book Designer</h3>
-          <p className="text-xs text-gray-500">Bring your own LLM API key — the AI reads your manuscript and designs the whole book.</p>
+          <p className="text-xs text-gray-500">Dùng API key của bạn — AI đọc bản thảo và thiết kế cả cuốn sách.</p>
         </div>
       </div>
 
       <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
         <p className="text-[10px] text-amber-700 leading-relaxed">
-          🔑 Your key is sent only with this request to call your chosen AI provider. It is never stored on Bookify servers or logged.
+          🔑 Key chỉ được dùng để gọi thẳng đến AI provider trong từng request — không lưu trên server Bookify, không log.
+          Nhập nhiều key để bật dự phòng tự động.
         </p>
       </div>
 
-      {/* Provider + model */}
+      {/* Provider selector */}
       <div>
-        <label className="text-[11px] text-gray-500 block mb-1">AI Provider</label>
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-[11px] text-gray-500">AI Provider</label>
+          {configuredCount > 0 && (
+            <span className="text-[9px] font-bold text-emerald-600">{configuredCount} provider đã có key</span>
+          )}
+        </div>
         <select value={provider} onChange={e => { setProvider(e.target.value as Provider); setDesign(null); }} className="select-field">
-          {PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+          {PROVIDERS.map(p => (
+            <option key={p.id} value={p.id}>
+              {hasCreds(p.id) ? '✓ ' : ''}{p.label}
+            </option>
+          ))}
         </select>
       </div>
 
       {provider === 'custom' && (
         <div>
           <label className="text-[11px] text-gray-500 block mb-1">Base URL (OpenAI-compatible)</label>
-          <input type="text" placeholder="https://openrouter.ai/api/v1  or  http://localhost:11434/v1" value={baseUrl} onChange={e => setBaseUrl(e.target.value)} className="input-field" />
+          <input type="text" placeholder="http://localhost:11434/v1 (Ollama, LM Studio…)" value={current.baseUrl}
+            onChange={e => patchCfg('custom', { baseUrl: e.target.value })} className="input-field" />
         </div>
       )}
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="text-[11px] text-gray-500 block mb-1">API Key</label>
-          <input type="password" placeholder={providerInfo.keyHint} value={apiKey} onChange={e => setApiKey(e.target.value)} className="input-field" autoComplete="off" />
+          <label className="text-[11px] text-gray-500 block mb-1">API Key — {providerLabel(provider)}</label>
+          <input type="password" placeholder={providerInfo.keyHint} value={current.apiKey}
+            onChange={e => patchCfg(provider, { apiKey: e.target.value })} className="input-field" autoComplete="off" />
         </div>
         <div>
-          <label className="text-[11px] text-gray-500 block mb-1">Model (optional)</label>
-          <input type="text" placeholder={providerInfo.modelPlaceholder} value={model} onChange={e => setModel(e.target.value)} className="input-field" />
+          <label className="text-[11px] text-gray-500 block mb-1">Model (tùy chọn)</label>
+          <input type="text" placeholder={providerInfo.modelPlaceholder} value={current.model}
+            onChange={e => patchCfg(provider, { model: e.target.value })} className="input-field" />
         </div>
       </div>
 
-      <label className="flex items-center gap-2 cursor-pointer">
-        <input type="checkbox" checked={rememberKey} onChange={e => setRememberKey(e.target.checked)} className="rounded" />
-        <span className="text-[10px] text-gray-500">Remember key in this browser (stored locally, only on this device)</span>
-      </label>
+      <div className="space-y-1">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" checked={rememberKeys} onChange={e => setRememberKeys(e.target.checked)} className="rounded" />
+          <span className="text-[10px] text-gray-500">Nhớ các key trong trình duyệt này (chỉ lưu trên máy bạn)</span>
+        </label>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" checked={autoFallback} onChange={e => setAutoFallback(e.target.checked)} className="rounded" />
+          <span className="text-[10px] text-gray-500">
+            Tự động chuyển provider khác nếu lỗi <span className="text-gray-400">(thứ tự: provider đang chọn → các provider đã có key)</span>
+          </span>
+        </label>
+      </div>
 
       <div>
-        <label className="text-[11px] text-gray-500 block mb-1">Design brief (optional)</label>
+        <label className="text-[11px] text-gray-500 block mb-1">Mô tả thiết kế mong muốn (tùy chọn)</label>
         <textarea
           rows={2}
-          placeholder='e.g. "dark epic fantasy, ornate and dramatic" or "sách thiếu nhi, vui tươi, chữ to dễ đọc"'
+          placeholder='vd: "Sách Phật học nhập môn, ấm áp, thanh tịnh, dễ đọc" hoặc "dark epic fantasy, ornate"'
           value={brief}
           onChange={e => setBrief(e.target.value)}
           className="input-field resize-none"
@@ -198,11 +278,11 @@ export function AIDesignerPanel() {
         disabled={!!busy}
         className="w-full py-2.5 bg-gradient-to-r from-violet-600 to-fuchsia-500 text-white rounded-lg text-xs font-bold shadow-sm disabled:opacity-50 hover:opacity-90 transition-opacity"
       >
-        {busy || '✨ Generate Book Design'}
+        {busy || '✨ Tạo Thiết Kế Sách'}
       </button>
 
       {error && (
-        <div className="p-2 rounded text-[11px] border bg-red-50 text-red-700 border-red-200">{error}</div>
+        <div className="p-2 rounded text-[11px] border bg-red-50 text-red-700 border-red-200 whitespace-pre-line">{error}</div>
       )}
 
       {/* Suggestion card */}
@@ -211,7 +291,7 @@ export function AIDesignerPanel() {
           <div className="px-4 py-3 bg-violet-50 border-b border-violet-100 flex items-center justify-between">
             <div>
               <p className="text-xs font-bold text-violet-800">{design.themeName}</p>
-              <p className="text-[10px] text-violet-500">AI-suggested interior design</p>
+              <p className="text-[10px] text-violet-500">via {designVia}</p>
             </div>
             <span className="w-6 h-6 rounded-full border-2 border-white shadow" style={{ background: design.colorAccent }} />
           </div>
@@ -219,7 +299,7 @@ export function AIDesignerPanel() {
           {/* Mini preview */}
           <div className="px-4 py-4 bg-white">
             <p className="text-center mb-2" style={{ fontFamily: design.headingFont, color: design.colorAccent, fontSize: '16px', fontWeight: 700 }}>
-              Chapter One
+              Chương Một
             </p>
             <p className="text-[11px] text-gray-700" style={{ fontFamily: design.bodyFont, lineHeight: design.lineHeight }}>
               {design.dropCaps && (
@@ -227,9 +307,9 @@ export function AIDesignerPanel() {
                   fontSize: `${design.dropCapLines * 14}px`, lineHeight: 0.8,
                   color: design.dropCapStyle === 'classic' ? '#1a1a1a' : design.colorAccent,
                   fontFamily: design.dropCapStyle === 'ornate' ? design.headingFont : design.bodyFont,
-                }}>T</span>
+                }}>N</span>
               )}
-              he morning sun cast long shadows across the valley as she made her way down the winding path.
+              gày xửa ngày xưa, ở một vương quốc bên bờ biển, có một người kể chuyện…
             </p>
             <div className="clear-both" />
             <p className="text-center text-xs mt-2" style={{ color: design.colorAccent, letterSpacing: '0.3em' }}>{design.sceneBreakSymbol}</p>
@@ -239,11 +319,11 @@ export function AIDesignerPanel() {
           <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100 flex flex-wrap gap-1">
             {[
               `${design.bodyFont} ${design.fontSize}pt`,
-              `Headings: ${design.headingFont}`,
-              `Line ${design.lineHeight}`,
+              `Tiêu đề: ${design.headingFont}`,
+              `Giãn dòng ${design.lineHeight}`,
               `Gap: ${design.headingGap}`,
-              `Chapter: ${design.chapterStartPosition}`,
-              design.dropCaps ? `Drop cap ${design.dropCapLines}L/${design.dropCapStyle}` : 'No drop caps',
+              `Chương: ${design.chapterStartPosition}`,
+              design.dropCaps ? `Drop cap ${design.dropCapLines}d/${design.dropCapStyle}` : 'Không drop cap',
               `${design.trimSize} ${design.bindingType}`,
               `Header: ${design.runningHeader.replace('_', '+')}`,
             ].map(chip => (
@@ -261,11 +341,11 @@ export function AIDesignerPanel() {
               disabled={!!busy || applied}
               className="w-full py-2.5 bg-bookify-600 text-white rounded-lg text-xs font-bold disabled:opacity-60 hover:bg-bookify-700 transition-colors"
             >
-              {applied ? '✓ Design Applied (doc styled + export settings set)' : busy || 'Apply This Design'}
+              {applied ? '✓ Đã áp dụng (doc đã style + thiết lập export sẵn sàng)' : busy || 'Áp Dụng Thiết Kế Này'}
             </button>
             {applied && (
               <p className="text-[10px] text-gray-400 mt-1.5 text-center">
-                Fonts &amp; colors applied to your Google Doc. Trim size, drop caps, heading gap and running header are pre-filled in the Export tab.
+                Font &amp; màu đã áp vào Google Doc. Khổ sách, drop cap, heading gap, running header đã điền sẵn ở tab Export.
               </p>
             )}
           </div>

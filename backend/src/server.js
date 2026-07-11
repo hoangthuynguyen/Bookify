@@ -102,9 +102,20 @@ app.use('/themes', authMiddleware, generalLimiter, themeRoutes);
 
 const path = require('path');
 const frontendDistPath = path.join(__dirname, '../../frontend/dist');
-app.use(express.static(frontendDistPath));
+// index.html must never be cached (the Docs sidebar iframe caches hard and
+// users end up on stale bundles); hashed assets can cache forever.
+app.use(express.static(frontendDistPath, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-store, must-revalidate');
+    } else if (/\.(js|css|woff2?)$/.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+  },
+}));
 
 app.get('*', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, must-revalidate');
   res.sendFile(path.join(frontendDistPath, 'index.html'));
 });
 

@@ -34,6 +34,7 @@ const DEFAULT_MODELS = {
   anthropic: 'claude-sonnet-5',
   openai: 'gpt-4o-mini',
   gemini: 'gemini-2.0-flash',
+  openrouter: 'openrouter/auto',
   custom: '',
 };
 
@@ -101,9 +102,9 @@ async function callAnthropic(apiKey, model, prompt) {
   return data.content?.[0]?.text || '';
 }
 
-async function callOpenAICompatible(baseUrl, apiKey, model, prompt) {
+async function callOpenAICompatible(baseUrl, apiKey, model, prompt, extraHeaders) {
   const url = `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
-  const headers = { 'content-type': 'application/json' };
+  const headers = { 'content-type': 'application/json', ...(extraHeaders || {}) };
   if (apiKey) headers.authorization = `Bearer ${apiKey}`;
   const res = await fetch(url, {
     method: 'POST',
@@ -180,8 +181,8 @@ router.post('/suggest-design', async (req, res) => {
   try {
     const { provider, apiKey, model, baseUrl, brief, metadata, sample } = req.body || {};
 
-    if (!provider || !['anthropic', 'openai', 'gemini', 'custom'].includes(provider)) {
-      return res.status(400).json({ error: 'provider must be anthropic | openai | gemini | custom' });
+    if (!provider || !['anthropic', 'openai', 'gemini', 'openrouter', 'custom'].includes(provider)) {
+      return res.status(400).json({ error: 'provider must be anthropic | openai | gemini | openrouter | custom' });
     }
     if (!apiKey && provider !== 'custom') {
       return res.status(400).json({ error: 'apiKey is required' });
@@ -219,6 +220,10 @@ router.post('/suggest-design', async (req, res) => {
       text = await callOpenAICompatible('https://api.openai.com/v1', apiKey, model || DEFAULT_MODELS.openai, prompt);
     } else if (provider === 'gemini') {
       text = await callGemini(apiKey, model, prompt);
+    } else if (provider === 'openrouter') {
+      text = await callOpenAICompatible('https://openrouter.ai/api/v1', apiKey,
+        model || DEFAULT_MODELS.openrouter, prompt,
+        { 'HTTP-Referer': 'https://bookify-ixxa.onrender.com', 'X-Title': 'Bookify' });
     } else {
       text = await callOpenAICompatible(baseUrl, apiKey, model || 'default', prompt);
     }
