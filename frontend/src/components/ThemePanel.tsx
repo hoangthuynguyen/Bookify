@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { callGas } from '../hooks/useGasBridge';
-import { BOOK_TEMPLATES, TEMPLATE_CATEGORIES } from '../data/bookTemplates';
-import { applyBookDesign } from '../lib/applyDesign';
+import { TemplateGallery } from './TemplateGallery';
 
 const FONTS = ['Georgia', 'EB Garamond', 'Merriweather', 'Lora', 'PT Serif', 'Crimson Text', 'Roboto', 'Open Sans', 'Lato', 'Cinzel', 'Great Vibes', 'Oswald', 'Montserrat', 'Playfair Display'];
 const SIZES = ['10pt', '10.5pt', '11pt', '11.5pt', '12pt', '13pt', '14pt'];
@@ -141,7 +140,6 @@ const FALLBACK_THEMES: ThemePresetI[] = [
 export function ThemePanel() {
   const [themes, setThemes] = useState<ThemePresetI[]>([]);
   const [tab, setTab] = useState<'presets' | 'templates' | 'custom'>('templates');
-  const [appliedTemplateId, setAppliedTemplateId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
@@ -408,108 +406,7 @@ export function ThemePanel() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2 pb-20">
-        {tab === 'templates' && (
-          <div className="space-y-4">
-            <p className="text-[11px] text-gray-500">
-              Complete book designs — one click sets fonts, drop caps, scene breaks, heading gaps,
-              trim size and running headers for your whole book.
-            </p>
-            {TEMPLATE_CATEGORIES.map(cat => (
-              <div key={cat.id}>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">{cat.label}</p>
-                <div className="space-y-2">
-                  {BOOK_TEMPLATES.filter(t => t.category === cat.id).map(t => (
-                    <div key={t.id} className="border border-gray-200 rounded-xl overflow-hidden bg-white hover:shadow-sm transition-shadow">
-                      {/* Mini page preview */}
-                      <div className="px-4 py-3 border-b border-gray-50" style={{ background: `${t.design.colorAccent}0d` }}>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <p className="text-xs font-bold text-gray-800">{t.emoji} {t.name}</p>
-                          <span className="w-4 h-4 rounded-full border border-white shadow-sm shrink-0" style={{ background: t.design.colorAccent }} />
-                        </div>
-                        <p className="text-center text-[13px] font-bold mb-1" style={{ fontFamily: t.design.headingFont, color: t.design.colorAccent }}>
-                          {t.category === 'vietnamese' ? 'Chương Một' : 'Chapter One'}
-                        </p>
-                        <p className="text-[10px] text-gray-600 leading-snug" style={{ fontFamily: t.design.bodyFont, lineHeight: t.design.lineHeight }}>
-                          {t.design.dropCaps && (
-                            <span className="float-left mr-0.5 font-bold" style={{
-                              fontSize: `${t.design.dropCapLines * 11}px`, lineHeight: 0.8,
-                              color: t.design.dropCapStyle === 'classic' ? '#1a1a1a' : t.design.colorAccent,
-                              fontFamily: t.design.dropCapStyle === 'ornate' ? t.design.headingFont : t.design.bodyFont,
-                            }}>{t.category === 'vietnamese' ? 'G' : 'O'}</span>
-                          )}
-                          {t.category === 'vietnamese'
-                            /* Đoạn mẫu nhiều dấu để kiểm tra font render tiếng Việt */
-                            ? (t.design.dropCaps ? 'ió' : 'Gió') + ' thoảng qua triền đê, ánh trăng lặng lẽ ươm vàng bến nước, tiếng mẹ ru khe khẽ giữa trưa hè oi ả…'
-                            : 'nce upon a time, in a kingdom by the sea, there lived a storyteller…'}
-                        </p>
-                        <div className="clear-both" />
-                        <p className="text-center text-[9px] mt-1" style={{ color: t.design.colorAccent, letterSpacing: '0.25em' }}>{t.design.sceneBreakSymbol}</p>
-                      </div>
-                      <div className="px-3 py-2 flex items-center justify-between gap-2">
-                        <p className="text-[9px] text-gray-400 leading-snug flex-1">{t.description}</p>
-                        <button
-                          onClick={async () => {
-                            setApplying(true);
-                            setStatus(null);
-                            try {
-                              await applyBookDesign(t.design);
-                              setAppliedTemplateId(t.id);
-                              setStatus({ text: `"${t.name}" template applied — doc styled + export settings ready!`, ok: true });
-                            } catch (err) {
-                              setStatus({ text: err instanceof Error ? err.message : String(err), ok: false });
-                            } finally {
-                              setApplying(false);
-                            }
-                          }}
-                          disabled={applying}
-                          className={`shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-colors disabled:opacity-50
-                            ${appliedTemplateId === t.id
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : 'bg-bookify-600 text-white hover:bg-bookify-700'}`}
-                        >
-                          {appliedTemplateId === t.id ? '✓ Applied' : applying ? '…' : 'Apply'}
-                        </button>
-                      </div>
-
-                      {/* Bộ trang đầu sách VN: Trang tiêu đề + Bản quyền tiếng Việt */}
-                      {appliedTemplateId === t.id && t.category === 'vietnamese' && (
-                        <div className="px-3 pb-2.5">
-                          <button
-                            onClick={async () => {
-                              setApplying(true);
-                              try {
-                                const content = await callGas<{ metadata: { title?: string } }>('getDocumentContent');
-                                const year = new Date().getFullYear();
-                                // Chèn bản quyền trước, trang tiêu đề sau → tiêu đề đứng đầu sách
-                                await callGas('insertFrontMatter', 'copyright', { lang: 'vi', year, author: 'Tác giả' }, 'front');
-                                await callGas('insertFrontMatter', 'title-page', {
-                                  title: content.metadata?.title || 'Tựa Sách',
-                                  author: 'Tác giả',
-                                }, 'front');
-                                setStatus({ text: 'Đã tạo Trang tiêu đề + Trang bản quyền tiếng Việt ở đầu sách — sửa tên tác giả trong tài liệu nhé!', ok: true });
-                              } catch (err) {
-                                setStatus({ text: err instanceof Error ? err.message : String(err), ok: false });
-                              } finally {
-                                setApplying(false);
-                              }
-                            }}
-                            disabled={applying}
-                            className="w-full py-1.5 rounded-lg text-[10px] font-bold border-2 border-bookify-200 text-bookify-700 bg-bookify-50 hover:bg-bookify-100 transition-colors disabled:opacity-50"
-                          >
-                            {applying ? 'Đang tạo…' : '📄 Tạo trang đầu sách (Tiêu đề + Bản quyền VN)'}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-            <p className="text-[9px] text-gray-400 text-center">
-              Tip: apply a template first, then fine-tune fonts in Presets/Custom or ask the ✨ AI Designer for a bespoke look.
-            </p>
-          </div>
-        )}
+        {tab === 'templates' && <TemplateGallery />}
 
         {tab === 'presets' && (
           <>
