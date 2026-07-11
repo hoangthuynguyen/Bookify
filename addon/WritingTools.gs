@@ -761,3 +761,44 @@ function getPacingData() {
     throw new Error('Get pacing data failed: ' + err.message);
   }
 }
+
+// =============================================================================
+// Series Library — Book & Boxset Organization System
+// Stored in UserProperties: follows the Google account across devices/docs
+// =============================================================================
+
+/**
+ * Get the author's series library.
+ * @returns {{ series: Array<{id, name, books: Array<{title, url}>}> }}
+ */
+function getSeriesLibrary() {
+  try {
+    var props = PropertiesService.getUserProperties();
+    var raw = props.getProperty('bookify_series_library');
+    return raw ? JSON.parse(raw) : { series: [] };
+  } catch (error) {
+    throw new Error('Load series library failed: ' + error.message);
+  }
+}
+
+/**
+ * Save the author's series library (full replace).
+ * UserProperties values are capped at ~9KB, so titles/URLs only — no content.
+ * @param {object} library - { series: [...] }
+ * @returns {{ success: boolean, seriesCount: number }}
+ */
+function saveSeriesLibrary(library) {
+  try {
+    if (!library || !Array.isArray(library.series)) {
+      throw new Error('Invalid library format.');
+    }
+    var payload = JSON.stringify(library);
+    if (payload.length > 9000) {
+      throw new Error('Library too large. Keep titles short or split into fewer series.');
+    }
+    PropertiesService.getUserProperties().setProperty('bookify_series_library', payload);
+    return { success: true, seriesCount: library.series.length };
+  } catch (error) {
+    throw new Error('Save series library failed: ' + error.message);
+  }
+}
