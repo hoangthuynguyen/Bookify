@@ -427,7 +427,7 @@ export function ThemePanel() {
                           <span className="w-4 h-4 rounded-full border border-white shadow-sm shrink-0" style={{ background: t.design.colorAccent }} />
                         </div>
                         <p className="text-center text-[13px] font-bold mb-1" style={{ fontFamily: t.design.headingFont, color: t.design.colorAccent }}>
-                          Chapter One
+                          {t.category === 'vietnamese' ? 'Chương Một' : 'Chapter One'}
                         </p>
                         <p className="text-[10px] text-gray-600 leading-snug" style={{ fontFamily: t.design.bodyFont, lineHeight: t.design.lineHeight }}>
                           {t.design.dropCaps && (
@@ -435,9 +435,12 @@ export function ThemePanel() {
                               fontSize: `${t.design.dropCapLines * 11}px`, lineHeight: 0.8,
                               color: t.design.dropCapStyle === 'classic' ? '#1a1a1a' : t.design.colorAccent,
                               fontFamily: t.design.dropCapStyle === 'ornate' ? t.design.headingFont : t.design.bodyFont,
-                            }}>O</span>
+                            }}>{t.category === 'vietnamese' ? 'G' : 'O'}</span>
                           )}
-                          nce upon a time, in a kingdom by the sea, there lived a storyteller…
+                          {t.category === 'vietnamese'
+                            /* Đoạn mẫu nhiều dấu để kiểm tra font render tiếng Việt */
+                            ? (t.design.dropCaps ? 'ió' : 'Gió') + ' thoảng qua triền đê, ánh trăng lặng lẽ ươm vàng bến nước, tiếng mẹ ru khe khẽ giữa trưa hè oi ả…'
+                            : 'nce upon a time, in a kingdom by the sea, there lived a storyteller…'}
                         </p>
                         <div className="clear-both" />
                         <p className="text-center text-[9px] mt-1" style={{ color: t.design.colorAccent, letterSpacing: '0.25em' }}>{t.design.sceneBreakSymbol}</p>
