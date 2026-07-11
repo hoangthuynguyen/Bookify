@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { callGas } from '../hooks/useGasBridge';
 import { useAppStore } from '../store/appStore';
 
@@ -518,52 +518,8 @@ export function FormattingPanel() {
             </div>
           )}
 
-          {/* Image */}
-          {activeSection === 'image' && (
-            <div className="space-y-3 p-1">
-              <p className="text-[11px] text-gray-500 mb-2">Select an image in your document and click to toggle Full Bleed mode.</p>
-              <div className="pt-2">
-                <button
-                  onClick={() => withStatus(
-                    () => callGas('toggleImageFullBleed').then((res: any) => {
-                      if (res && res.message) {
-                        setStatus({ text: res.message, ok: true });
-                      }
-                    }),
-                    `Image format updated!`
-                  )}
-                  disabled={loading}
-                  className="w-full py-2 bg-bookify-600 text-white rounded-md text-xs font-bold disabled:opacity-50 hover:bg-bookify-700 transition-colors shadow-sm"
-                >
-                  {loading ? 'Processing...' : 'Toggle Full Bleed Image (PDF)'}
-                </button>
-              </div>
-              <p className="text-[10px] text-gray-400 mt-2 text-center">Full bleed makes the image expand to the page edges upon PDF export.</p>
-
-              {/* Two-page spread */}
-              <div className="pt-3 border-t border-gray-100">
-                <p className="text-[11px] text-gray-500 mb-2">
-                  <span className="font-semibold text-gray-600">Two-Page Spread:</span> the image spans two facing pages —
-                  left half prints on the left page, right half on the right page. Best with wide panoramic images.
-                </p>
-                <button
-                  onClick={() => withStatus(
-                    () => callGas('toggleImageTwoPageSpread').then((res: any) => {
-                      if (res && res.message) {
-                        setStatus({ text: res.message, ok: true });
-                      }
-                    }),
-                    'Image format updated!'
-                  )}
-                  disabled={loading}
-                  className="w-full py-2 bg-gradient-to-r from-bookify-600 to-violet-600 text-white rounded-md text-xs font-bold disabled:opacity-50 hover:opacity-90 transition-opacity shadow-sm"
-                >
-                  {loading ? 'Processing...' : 'Toggle Two-Page Spread (PDF)'}
-                </button>
-                <p className="text-[10px] text-gray-400 mt-2 text-center">Tip: use with mirror margins for print-ready spreads.</p>
-              </div>
-            </div>
-          )}
+          {/* Image Organizer */}
+          {activeSection === 'image' && <ImageOrganizer />}
 
           {/* Rich Fonts — multiple fonts in a single chapter */}
           {activeSection === 'fonts' && (
@@ -608,6 +564,156 @@ export function FormattingPanel() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// Image Organizer — every image in the doc: DPI check, ALT text, layout tag
+// =============================================================================
+
+interface ImageInfo {
+  index: number;
+  width: number;
+  height: number;
+  sizeKB: number;
+  dpiEst: number;
+  alt: string;
+  tag: 'none' | 'full-bleed' | 'spread' | 'chapter-header';
+  context: string;
+}
+
+const IMAGE_TAG_OPTIONS = [
+  { id: 'none', label: 'Normal' },
+  { id: 'full-bleed', label: 'Full Bleed' },
+  { id: 'spread', label: '2-Page Spread' },
+  { id: 'chapter-header', label: 'Chapter Header' },
+] as const;
+
+function ImageOrganizer() {
+  const [images, setImages] = useState<ImageInfo[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [savingIdx, setSavingIdx] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await callGas<{ total: number; images: ImageInfo[] }>('getImageInventory');
+      setImages(res.images);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  function patch(idx: number, changes: Partial<ImageInfo>) {
+    setImages(prev => prev ? prev.map(im => im.index === idx ? { ...im, ...changes } : im) : prev);
+  }
+
+  async function save(im: ImageInfo) {
+    setSavingIdx(im.index);
+    setError(null);
+    try {
+      await callGas('updateImageMeta', im.index, im.alt, im.tag);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSavingIdx(null);
+    }
+  }
+
+  const missingAlt = images?.filter(im => !im.alt.trim()).length ?? 0;
+  const lowDpi = images?.filter(im => im.dpiEst < 300).length ?? 0;
+
+  return (
+    <div className="space-y-3 p-1">
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] text-gray-500">
+          All images in your document — fix resolution, accessibility and layout in one place.
+        </p>
+        <button onClick={load} disabled={busy} className="text-[10px] text-bookify-600 font-semibold hover:underline disabled:opacity-50 shrink-0 ml-2">
+          {busy ? 'Scanning…' : '↻ Rescan'}
+        </button>
+      </div>
+
+      {/* Health summary */}
+      {images && images.length > 0 && (
+        <div className="flex gap-1.5">
+          <span className="px-2 py-1 rounded-md bg-gray-100 text-[10px] font-semibold text-gray-600">{images.length} images</span>
+          <span className={`px-2 py-1 rounded-md text-[10px] font-semibold ${lowDpi ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+            {lowDpi ? `${lowDpi} low-DPI` : 'DPI OK'}
+          </span>
+          <span className={`px-2 py-1 rounded-md text-[10px] font-semibold ${missingAlt ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+            {missingAlt ? `${missingAlt} missing ALT` : 'ALT OK'}
+          </span>
+        </div>
+      )}
+
+      {error && <div className="p-2 rounded text-[11px] border bg-red-50 text-red-700 border-red-200">{error}</div>}
+
+      {images && images.length === 0 && (
+        <p className="text-[11px] text-gray-400 text-center py-6">No images found in this document.</p>
+      )}
+
+      {images?.map(im => (
+        <div key={im.index} className="border border-gray-200 rounded-lg p-2.5 space-y-2 bg-white">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="w-6 h-6 rounded bg-bookify-50 text-bookify-600 text-[10px] font-bold flex items-center justify-center shrink-0">#{im.index + 1}</span>
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold text-gray-600 truncate">
+                  {im.context ? `After "${im.context}"` : 'Image'}
+                </p>
+                <p className="text-[9px] text-gray-400">{im.width}×{im.height}pt · {im.sizeKB > 1024 ? (im.sizeKB / 1024).toFixed(1) + ' MB' : im.sizeKB + ' KB'}</p>
+              </div>
+            </div>
+            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0 ${im.dpiEst >= 300 ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'}`}>
+              ~{im.dpiEst} DPI
+            </span>
+          </div>
+
+          <input
+            type="text"
+            placeholder="ALT text for accessibility (describe the image)"
+            value={im.alt}
+            onChange={e => patch(im.index, { alt: e.target.value })}
+            className={`input-field !text-[11px] ${!im.alt.trim() ? '!border-red-200' : ''}`}
+          />
+
+          <div className="flex gap-1">
+            {IMAGE_TAG_OPTIONS.map(opt => (
+              <button
+                key={opt.id}
+                onClick={() => patch(im.index, { tag: opt.id })}
+                className={`flex-1 py-1 rounded text-[9px] font-semibold border transition-colors
+                  ${im.tag === opt.id
+                    ? 'bg-bookify-600 text-white border-bookify-600'
+                    : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => save(im)}
+            disabled={savingIdx === im.index}
+            className="w-full py-1.5 bg-gray-800 text-white rounded text-[10px] font-bold disabled:opacity-50 hover:bg-gray-900 transition-colors"
+          >
+            {savingIdx === im.index ? 'Saving…' : 'Save Image Settings'}
+          </button>
+        </div>
+      ))}
+
+      <p className="text-[9px] text-gray-400 leading-relaxed">
+        <b>Full Bleed</b>: edge-to-edge page (PDF). <b>2-Page Spread</b>: splits across two facing pages (PDF).
+        <b> Chapter Header</b>: banner above the chapter title (PDF + EPUB). ALT text ships in EPUB for screen readers.
+      </p>
     </div>
   );
 }

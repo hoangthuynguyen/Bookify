@@ -263,6 +263,17 @@ def render_pdf(html_content, trim_size, theme, settings):
         object-fit: cover;
     }}
 
+    /* === Chapter Header Images === */
+    /* Placed before a chapter heading: spans the full text block width */
+    img[alt*="[CHAPTER_HEADER]"] {{
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+        margin: 0 0 0.8em 0;
+        object-fit: cover;
+        page-break-after: avoid;
+    }}
+
     /* === Two-Page Image Spreads === */
     /* Each half is a zero-margin page; the image is 2x page width and the
        right page shifts it left by one page width so the halves line up. */

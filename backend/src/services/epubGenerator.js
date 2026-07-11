@@ -14,7 +14,79 @@ const epub = typeof epubModule === 'function' ? epubModule : (epubModule.default
  * @param {object} settings - { dropCaps, sceneBreakSymbol, includeChapters, epubStartPage }
  * @returns {{ buffer: Buffer, filename: string, chapterCount: number }}
  */
+// Layout tags travel in the img alt attribute (set by the Google Docs add-on).
+// For EPUB accessibility, move them to CSS classes and strip them from alt so
+// screen readers only hear the real description.
+const IMG_TAG_CLASSES = [
+  ['[FULL_BLEED]', 'full-bleed-img'],
+  ['[TWO_PAGE_SPREAD]', 'full-bleed-img'], // reflowable EPUB has no facing pages
+  ['[CHAPTER_HEADER]', 'chapter-header-img'],
+];
+
+function cleanImageTags(html) {
+  return html.replace(/<img\b[^>]*>/gi, (tag) => {
+    let out = tag;
+    const classes = [];
+    for (const [token, cls] of IMG_TAG_CLASSES) {
+      if (out.includes(token)) {
+        classes.push(cls);
+        out = out.split(token).join('');
+      }
+    }
+    if (classes.length === 0) return tag;
+    out = out.replace(/alt="\s*([^"]*?)\s*"/i, (_, a) => `alt="${a.replace(/\s+/g, ' ').trim()}"`);
+    return out.replace(/^<img\b/i, `<img class="${classes.join(' ')}"`);
+  });
+}
+
+// epub-gen-memory downloads <img src> with node-fetch v2, which rejects data:
+// URIs — but Google Docs exports every image as a data: URI. Serve the decoded
+// images from an ephemeral localhost HTTP server for the duration of the build
+// so they end up properly packaged inside the EPUB.
+async function withDataUriImages(html, build) {
+  const images = [];
+  const rewritten = html.replace(
+    /src="data:([a-z0-9.+/-]+);base64,([^"]+)"/gi,
+    (match, mime, b64) => {
+      try {
+        const idx = images.push({ mime, buf: Buffer.from(b64, 'base64') }) - 1;
+        return `src="__BOOKIFY_IMG_${idx}__"`;
+      } catch {
+        return match;
+      }
+    }
+  );
+  if (images.length === 0) return build(html);
+
+  // The lib infers each image's file extension from its URL, so include one
+  const EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp', 'image/svg+xml': 'svg', 'image/bmp': 'bmp', 'image/tiff': 'tif' };
+  const extOf = (mime) => EXT[mime.toLowerCase()] || 'png';
+
+  const http = require('http');
+  const server = http.createServer((req, res) => {
+    const m = (req.url || '').match(/^\/img\/(\d+)\./);
+    const item = m && images[Number(m[1])];
+    if (!item) { res.statusCode = 404; return res.end(); }
+    res.setHeader('content-type', item.mime);
+    res.end(item.buf);
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const port = server.address().port;
+  try {
+    const finalHtml = rewritten.replace(/__BOOKIFY_IMG_(\d+)__/g,
+      (_, i) => `http://127.0.0.1:${port}/img/${i}.${extOf(images[Number(i)].mime)}`);
+    return await build(finalHtml);
+  } finally {
+    server.close();
+  }
+}
+
 async function generateEpub(docContent, metadata, theme, settings) {
+  return withDataUriImages(cleanImageTags(docContent), (preparedHtml) =>
+    generateEpubInner(preparedHtml, metadata, theme, settings));
+}
+
+async function generateEpubInner(docContent, metadata, theme, settings) {
   const chapters = parseChapters(docContent, settings.includeChapters);
 
   if (chapters.length === 0) {
@@ -31,11 +103,19 @@ async function generateEpub(docContent, metadata, theme, settings) {
     tocTitle: 'Table of Contents',
     appendChapterTitles: false,
     verbose: false,
+    // One broken image link should not kill the whole book export
+    ignoreFailedDownloads: true,
   };
 
   // Add ISBN if provided
   if (metadata.isbn) {
     epubOptions.identifier = metadata.isbn;
+  }
+  if (metadata.publisher) {
+    epubOptions.publisher = metadata.publisher;
+  }
+  if (metadata.description) {
+    epubOptions.description = metadata.description;
   }
 
   // epub-gen-memory v1.1.2 uses two-argument form: epub(options, contentArray)
@@ -190,6 +270,14 @@ img {
   height: auto;
   display: block;
   margin: 1em auto;
+}
+.full-bleed-img {
+  width: 100%;
+  margin: 1em 0;
+}
+.chapter-header-img {
+  width: 100%;
+  margin: 0 0 1em 0;
 }
 
 /* === Block Quotes === */

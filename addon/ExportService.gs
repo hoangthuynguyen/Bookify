@@ -569,7 +569,9 @@ function convertParagraphToHtml_(para) {
       var blob = img.getBlob();
       var base64 = Utilities.base64Encode(blob.getBytes());
       var mimeType = blob.getContentType();
-      var altText = img.getAltTitle() || img.getAltDescription() || '';
+      // Combine both: altTitle carries layout tags ([FULL_BLEED] etc.),
+      // altDescription carries the real accessibility description.
+      var altText = ((img.getAltTitle() || '') + ' ' + (img.getAltDescription() || '')).trim();
       text += '<img src="data:' + mimeType + ';base64,' + base64 + '" alt="' + escapeHtml_(altText) + '" />';
     }
   }

@@ -993,3 +993,116 @@ function toggleImageTwoPageSpread() {
     throw new Error('Two-page spread failed: ' + error.message);
   }
 }
+
+// =============================================================================
+// Image Organizer — inventory + per-image metadata (solves "image chaos")
+// =============================================================================
+
+var IMAGE_TAGS = ['[FULL_BLEED]', '[TWO_PAGE_SPREAD]', '[CHAPTER_HEADER]'];
+
+/**
+ * List every inline image in the document with size, DPI estimate,
+ * accessibility ALT text and current layout tag.
+ * @returns {{ total: number, images: Array }}
+ */
+function getImageInventory() {
+  try {
+    var doc = DocumentApp.getActiveDocument();
+    var body = doc.getBody();
+    var images = body.getImages();
+    var result = [];
+
+    for (var i = 0; i < images.length; i++) {
+      var img = images[i];
+      var width = img.getWidth();
+      var height = img.getHeight();
+      var sizeBytes = img.getBlob().getBytes().length;
+      var sizeKB = Math.round(sizeBytes / 1024);
+
+      // Same heuristic as validateImageDPI
+      var dpiEst = 300;
+      if (width > 150 && sizeKB < 50) dpiEst = 72;
+      else if (width > 300 && sizeKB < 150) dpiEst = 150;
+
+      var altTitle = img.getAltTitle() || '';
+      var tag = 'none';
+      if (altTitle.indexOf('[FULL_BLEED]') !== -1) tag = 'full-bleed';
+      else if (altTitle.indexOf('[TWO_PAGE_SPREAD]') !== -1) tag = 'spread';
+      else if (altTitle.indexOf('[CHAPTER_HEADER]') !== -1) tag = 'chapter-header';
+
+      // Nearest heading above the image, for context
+      var context = '';
+      try {
+        var el = img.getParent();
+        while (el && el.getType() !== DocumentApp.ElementType.PARAGRAPH) el = el.getParent();
+        var sibling = el ? el.getPreviousSibling() : null;
+        var hops = 0;
+        while (sibling && hops < 30) {
+          if (sibling.getType() === DocumentApp.ElementType.PARAGRAPH) {
+            var p = sibling.asParagraph();
+            if (p.getHeading() !== DocumentApp.ParagraphHeading.NORMAL && p.getText()) {
+              context = p.getText().substring(0, 50);
+              break;
+            }
+          }
+          sibling = sibling.getPreviousSibling();
+          hops++;
+        }
+      } catch (e) { /* context is best-effort */ }
+
+      result.push({
+        index: i,
+        width: Math.round(width),
+        height: Math.round(height),
+        sizeKB: sizeKB,
+        dpiEst: dpiEst,
+        alt: img.getAltDescription() || '',
+        tag: tag,
+        context: context,
+      });
+    }
+
+    return { total: images.length, images: result };
+  } catch (error) {
+    throw new Error('Image inventory failed: ' + error.message);
+  }
+}
+
+/**
+ * Update one image's accessibility ALT text and/or layout tag.
+ * @param {number} index - position in body.getImages() order
+ * @param {string} alt - accessibility description ('' allowed)
+ * @param {string} tag - 'none' | 'full-bleed' | 'spread' | 'chapter-header'
+ * @returns {{ success: boolean }}
+ */
+function updateImageMeta(index, alt, tag) {
+  try {
+    var doc = DocumentApp.getActiveDocument();
+    var images = doc.getBody().getImages();
+    if (index < 0 || index >= images.length) {
+      throw new Error('Image #' + (index + 1) + ' not found (document has ' + images.length + ').');
+    }
+    var img = images[index];
+
+    if (alt !== null && alt !== undefined) {
+      img.setAltDescription(String(alt));
+    }
+
+    if (tag !== null && tag !== undefined) {
+      var title = img.getAltTitle() || '';
+      for (var t = 0; t < IMAGE_TAGS.length; t++) {
+        title = title.replace(IMAGE_TAGS[t], '');
+      }
+      title = title.replace(/\s+/g, ' ').trim();
+      var tagToken = tag === 'full-bleed' ? '[FULL_BLEED]'
+        : tag === 'spread' ? '[TWO_PAGE_SPREAD]'
+        : tag === 'chapter-header' ? '[CHAPTER_HEADER]'
+        : '';
+      img.setAltTitle((title + ' ' + tagToken).trim());
+    }
+
+    return { success: true };
+  } catch (error) {
+    throw new Error('Update image failed: ' + error.message);
+  }
+}
