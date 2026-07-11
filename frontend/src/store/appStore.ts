@@ -48,6 +48,9 @@ interface AppState {
   setBookLanguage: (l: string) => void;
   tocTitle: string;
   setTocTitle: (t: string) => void;
+  // Chapter-level: H1 titles the author excluded from EPUB/Kindle export
+  excludedChapters: string[];
+  toggleExcludedChapter: (title: string) => void;
 
   // Theme state
   selectedThemeId: string | null;
@@ -105,6 +108,12 @@ export const useAppStore = create<AppState>((set) => ({
   setBookLanguage: (l) => set({ bookLanguage: l }),
   tocTitle: '',
   setTocTitle: (t) => set({ tocTitle: t }),
+  excludedChapters: [],
+  toggleExcludedChapter: (title) => set((state) => ({
+    excludedChapters: state.excludedChapters.includes(title)
+      ? state.excludedChapters.filter((t) => t !== title)
+      : [...state.excludedChapters, title],
+  })),
 
   selectedThemeId: null,
   setSelectedThemeId: (id) => set({ selectedThemeId: id }),

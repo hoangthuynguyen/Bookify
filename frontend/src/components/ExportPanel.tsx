@@ -58,6 +58,7 @@ export function ExportPanel() {
     runningHeader, setRunningHeader,
     bookLanguage,
     tocTitle, setTocTitle,
+    excludedChapters,
   } = useAppStore();
 
   const [results, setResults] = useState<Record<string, ExportResult>>({});
@@ -119,6 +120,8 @@ export function ExportPanel() {
         headingGap, chapterStartPosition, largePrint,
         dropCapLines, dropCapStyle,
         tocTitle: tocTitle.trim() || undefined,
+        language: bookLanguage || undefined,
+        excludeChapters: excludedChapters.length > 0 ? excludedChapters : undefined,
         metadataOverrides: {
           title: title.trim() || undefined,
           author: author.trim() || undefined,
@@ -321,6 +324,11 @@ export function ExportPanel() {
       {exportFormats.includes('epub') && (
         <div className="card-section space-y-2.5 border-l-[3px] border-l-violet-400 animate-slide-up">
           <p className="section-title text-violet-500">EPUB Options</p>
+          {excludedChapters.length > 0 && (
+            <p className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-2">
+              🚫 {excludedChapters.length} chương sẽ bị loại khỏi file (chỉnh trong tab Structure)
+            </p>
+          )}
           <ToggleRow label="Drop caps at chapter start" checked={dropCaps} onChange={setDropCaps} />
           <ToggleRow label="Large print (16pt+, high legibility)" checked={largePrint} onChange={setLargePrint} />
           <div>

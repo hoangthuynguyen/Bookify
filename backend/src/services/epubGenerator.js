@@ -87,7 +87,7 @@ async function generateEpub(docContent, metadata, theme, settings) {
 }
 
 async function generateEpubInner(docContent, metadata, theme, settings) {
-  const chapters = parseChapters(docContent, settings.includeChapters);
+  const chapters = parseChapters(docContent, settings.includeChapters, settings.excludeChapters);
 
   if (chapters.length === 0) {
     throw new Error('No chapters found. Make sure your document uses Heading 1 for chapter titles.');
@@ -143,7 +143,7 @@ async function generateEpubInner(docContent, metadata, theme, settings) {
 /**
  * Parse HTML into chapter objects by splitting on H1 tags
  */
-function parseChapters(html, includeChapters) {
+function parseChapters(html, includeChapters, excludeChapters) {
   // Split by H1 headings
   const h1Regex = /<h1[^>]*>(.*?)<\/h1>/gi;
   const parts = html.split(h1Regex);
@@ -167,6 +167,10 @@ function parseChapters(html, includeChapters) {
 
     // Skip if not in includeChapters filter
     if (includeChapters && includeChapters.length > 0 && !includeChapters.includes(title)) {
+      continue;
+    }
+    // Skip chapters the author explicitly excluded from export
+    if (excludeChapters && excludeChapters.length > 0 && excludeChapters.includes(title)) {
       continue;
     }
 

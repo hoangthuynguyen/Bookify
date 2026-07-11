@@ -194,6 +194,7 @@ function exportEpub(settings) {
         dropCaps: settings.dropCaps || false,
         sceneBreakSymbol: settings.sceneBreakSymbol || '* * *',
         includeChapters: settings.includeChapters || [],
+        excludeChapters: settings.excludeChapters || [],
         headingGap: settings.headingGap || 'normal',
         largePrint: settings.largePrint || false,
         dropCapLines: settings.dropCapLines || 3,
@@ -230,6 +231,7 @@ function exportAzw3(settings) {
         dropCaps: settings.dropCaps || false,
         sceneBreakSymbol: settings.sceneBreakSymbol || '* * *',
         includeChapters: settings.includeChapters || [],
+        excludeChapters: settings.excludeChapters || [],
         headingGap: settings.headingGap || 'normal',
         largePrint: settings.largePrint || false,
         dropCapLines: settings.dropCapLines || 3,
@@ -263,6 +265,7 @@ function exportKfx(settings) {
         dropCaps: settings.dropCaps || false,
         sceneBreakSymbol: settings.sceneBreakSymbol || '* * *',
         includeChapters: settings.includeChapters || [],
+        excludeChapters: settings.excludeChapters || [],
         headingGap: settings.headingGap || 'normal',
         largePrint: settings.largePrint || false,
         dropCapLines: settings.dropCapLines || 3,
@@ -295,6 +298,7 @@ function exportAzw(settings) {
         dropCaps: settings.dropCaps || false,
         sceneBreakSymbol: settings.sceneBreakSymbol || '* * *',
         includeChapters: settings.includeChapters || [],
+        excludeChapters: settings.excludeChapters || [],
         headingGap: settings.headingGap || 'normal',
         largePrint: settings.largePrint || false,
         dropCapLines: settings.dropCapLines || 3,
@@ -327,6 +331,7 @@ function exportMobi(settings) {
         dropCaps: settings.dropCaps || false,
         sceneBreakSymbol: settings.sceneBreakSymbol || '* * *',
         includeChapters: settings.includeChapters || [],
+        excludeChapters: settings.excludeChapters || [],
         headingGap: settings.headingGap || 'normal',
         largePrint: settings.largePrint || false,
         dropCapLines: settings.dropCapLines || 3,
@@ -428,6 +433,7 @@ function exportPdf(settings) {
         largePrint: settings.largePrint || false,
         dropCapLines: settings.dropCapLines || 3,
         dropCapStyle: settings.dropCapStyle || 'classic', // 'classic' | 'accent' | 'ornate'
+        language: settings.language || '', // 'vi' disables hyphenation in print
       },
     });
     return result;

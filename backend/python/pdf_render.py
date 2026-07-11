@@ -89,6 +89,10 @@ def render_pdf(html_content, trim_size, theme, settings):
     title_book = theme.get("title", "")
 
     # --- Design upgrades ---
+    # Vietnamese is monosyllabic: hyphenating across lines is a typographic
+    # error, so disable hyphens entirely for vi (other languages keep auto)
+    book_language = (settings.get("language") or "").lower()
+    hyphens_css = "manual" if book_language.startswith("vi") else "auto"
     heading_gap = HEADING_GAPS.get(settings.get("headingGap", "normal"), HEADING_GAPS["normal"])
     chapter_position = settings.get("chapterStartPosition", "top")  # top | middle | bottom
     large_print = settings.get("largePrint", False)
@@ -179,7 +183,7 @@ def render_pdf(html_content, trim_size, theme, settings):
         line-height: {line_height};
         color: #1a1a1a;
         text-align: justify;
-        hyphens: auto;
+        hyphens: {hyphens_css};
     }}
 
     p {{

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { callGas } from '../hooks/useGasBridge';
+import { useAppStore } from '../store/appStore';
 
 interface Heading {
   text: string;
@@ -42,6 +43,7 @@ export function StructurePanel() {
 
 /* ─── Chapter List with TOC Generator ─── */
 function ChapterList() {
+  const { excludedChapters, toggleExcludedChapter } = useAppStore();
   const [headings, setHeadings] = useState<Heading[]>([]);
   const [loading, setLoading] = useState(true);
   const [tocStatus, setTocStatus] = useState<string | null>(null);
@@ -183,11 +185,32 @@ function ChapterList() {
                 </span>
               )}
 
+              {/* Include/exclude from EPUB export (H1 only) */}
+              {h.level === 1 && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); toggleExcludedChapter(h.text); }}
+                  title={excludedChapters.includes(h.text)
+                    ? 'Chương này đang bị LOẠI khỏi EPUB/Kindle — bấm để đưa lại vào'
+                    : 'Đang có trong EPUB/Kindle — bấm để loại khỏi file xuất'}
+                  className={`text-[11px] flex-shrink-0 transition-opacity ${excludedChapters.includes(h.text) ? 'opacity-100' : 'opacity-30 group-hover:opacity-70'}`}
+                >
+                  {excludedChapters.includes(h.text) ? '🚫' : '👁'}
+                </button>
+              )}
+
               <span className="text-[9px] text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity">
                 ✏️
               </span>
             </div>
           ))}
+
+          {excludedChapters.length > 0 && (
+            <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-[10px] text-amber-700">
+                🚫 {excludedChapters.length} chương sẽ bị loại khỏi EPUB/Kindle khi xuất (bản in PDF vẫn giữ nguyên).
+              </p>
+            </div>
+          )}
 
           {/* Summary */}
           <div className="mt-3 p-2.5 bg-gray-50 rounded-lg border border-gray-100">
