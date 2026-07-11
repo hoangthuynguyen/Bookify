@@ -98,7 +98,8 @@ async function generateEpubInner(docContent, metadata, theme, settings) {
   const epubOptions = {
     title: metadata.title || 'Untitled Book',
     author: metadata.author || 'Unknown Author',
-    language: metadata.language || 'en',
+    // epub-gen-memory expects `lang` (a `language` key is silently ignored)
+    lang: metadata.language || 'en',
     css: themeCSS,
     tocTitle: settings.tocTitle || 'Table of Contents',
     appendChapterTitles: false,
