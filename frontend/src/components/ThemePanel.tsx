@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { callGas } from '../hooks/useGasBridge';
+import { BOOK_TEMPLATES, TEMPLATE_CATEGORIES } from '../data/bookTemplates';
+import { applyBookDesign } from '../lib/applyDesign';
 
 const FONTS = ['Georgia', 'EB Garamond', 'Merriweather', 'Lora', 'PT Serif', 'Crimson Text', 'Roboto', 'Open Sans', 'Lato', 'Cinzel', 'Great Vibes', 'Oswald', 'Montserrat', 'Playfair Display'];
 const SIZES = ['10pt', '10.5pt', '11pt', '11.5pt', '12pt', '13pt', '14pt'];
@@ -138,7 +140,8 @@ const FALLBACK_THEMES: ThemePresetI[] = [
 
 export function ThemePanel() {
   const [themes, setThemes] = useState<ThemePresetI[]>([]);
-  const [tab, setTab] = useState<'presets' | 'custom'>('presets');
+  const [tab, setTab] = useState<'presets' | 'templates' | 'custom'>('templates');
+  const [appliedTemplateId, setAppliedTemplateId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
@@ -366,6 +369,13 @@ export function ThemePanel() {
         <p className="section-desc mb-2">Style your book with professional typography</p>
         <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
           <button
+            onClick={() => setTab('templates')}
+            className={`flex-1 px-2 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-200
+              ${tab === 'templates' ? 'bg-white text-bookify-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            📖 Templates
+          </button>
+          <button
             onClick={() => setTab('presets')}
             className={`flex-1 px-2 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-200
               ${tab === 'presets' ? 'bg-white text-bookify-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
@@ -398,6 +408,76 @@ export function ThemePanel() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2 pb-20">
+        {tab === 'templates' && (
+          <div className="space-y-4">
+            <p className="text-[11px] text-gray-500">
+              Complete book designs — one click sets fonts, drop caps, scene breaks, heading gaps,
+              trim size and running headers for your whole book.
+            </p>
+            {TEMPLATE_CATEGORIES.map(cat => (
+              <div key={cat.id}>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">{cat.label}</p>
+                <div className="space-y-2">
+                  {BOOK_TEMPLATES.filter(t => t.category === cat.id).map(t => (
+                    <div key={t.id} className="border border-gray-200 rounded-xl overflow-hidden bg-white hover:shadow-sm transition-shadow">
+                      {/* Mini page preview */}
+                      <div className="px-4 py-3 border-b border-gray-50" style={{ background: `${t.design.colorAccent}0d` }}>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <p className="text-xs font-bold text-gray-800">{t.emoji} {t.name}</p>
+                          <span className="w-4 h-4 rounded-full border border-white shadow-sm shrink-0" style={{ background: t.design.colorAccent }} />
+                        </div>
+                        <p className="text-center text-[13px] font-bold mb-1" style={{ fontFamily: t.design.headingFont, color: t.design.colorAccent }}>
+                          Chapter One
+                        </p>
+                        <p className="text-[10px] text-gray-600 leading-snug" style={{ fontFamily: t.design.bodyFont, lineHeight: t.design.lineHeight }}>
+                          {t.design.dropCaps && (
+                            <span className="float-left mr-0.5 font-bold" style={{
+                              fontSize: `${t.design.dropCapLines * 11}px`, lineHeight: 0.8,
+                              color: t.design.dropCapStyle === 'classic' ? '#1a1a1a' : t.design.colorAccent,
+                              fontFamily: t.design.dropCapStyle === 'ornate' ? t.design.headingFont : t.design.bodyFont,
+                            }}>O</span>
+                          )}
+                          nce upon a time, in a kingdom by the sea, there lived a storyteller…
+                        </p>
+                        <div className="clear-both" />
+                        <p className="text-center text-[9px] mt-1" style={{ color: t.design.colorAccent, letterSpacing: '0.25em' }}>{t.design.sceneBreakSymbol}</p>
+                      </div>
+                      <div className="px-3 py-2 flex items-center justify-between gap-2">
+                        <p className="text-[9px] text-gray-400 leading-snug flex-1">{t.description}</p>
+                        <button
+                          onClick={async () => {
+                            setApplying(true);
+                            setStatus(null);
+                            try {
+                              await applyBookDesign(t.design);
+                              setAppliedTemplateId(t.id);
+                              setStatus({ text: `"${t.name}" template applied — doc styled + export settings ready!`, ok: true });
+                            } catch (err) {
+                              setStatus({ text: err instanceof Error ? err.message : String(err), ok: false });
+                            } finally {
+                              setApplying(false);
+                            }
+                          }}
+                          disabled={applying}
+                          className={`shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-colors disabled:opacity-50
+                            ${appliedTemplateId === t.id
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-bookify-600 text-white hover:bg-bookify-700'}`}
+                        >
+                          {appliedTemplateId === t.id ? '✓ Applied' : applying ? '…' : 'Apply'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <p className="text-[9px] text-gray-400 text-center">
+              Tip: apply a template first, then fine-tune fonts in Presets/Custom or ask the ✨ AI Designer for a bespoke look.
+            </p>
+          </div>
+        )}
+
         {tab === 'presets' && (
           <>
             {themes.length === 0 ? (

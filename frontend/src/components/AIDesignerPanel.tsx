@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { callGas } from '../hooks/useGasBridge';
 import { useAppStore } from '../store/appStore';
+import { applyBookDesign } from '../lib/applyDesign';
 import type { HeadingGap, ChapterStartPosition, DropCapStyle } from '../store/appStore';
 
 const API_URL = (import.meta as unknown as { env: Record<string, string> }).env?.VITE_API_URL || 'https://bookify-ixxa.onrender.com';
@@ -36,13 +37,7 @@ interface AIDesign {
 const CFG_KEY = 'bookify_ai_designer_cfg';
 
 export function AIDesignerPanel() {
-  const {
-    genre,
-    setHeadingGap, setChapterStartPosition,
-    setDropCapLines, setDropCapStyle, setDropCaps,
-    setSceneBreakSymbol, setRunningHeader,
-    setTrimSize, setBindingType,
-  } = useAppStore();
+  const { genre } = useAppStore();
 
   const [provider, setProvider] = useState<Provider>('anthropic');
   const [apiKey, setApiKey] = useState('');
@@ -125,27 +120,7 @@ export function AIDesignerPanel() {
     setBusy('Applying design to your document…');
     setError(null);
     try {
-      // 1. Document-level theme via Apps Script
-      await callGas('applyTheme', {
-        bodyFont: design.bodyFont,
-        headingFont: design.headingFont,
-        fontSize: `${design.fontSize}pt`,
-        lineHeight: design.lineHeight,
-        colorAccent: design.colorAccent,
-      });
-      await callGas('applySceneBreakStyle', design.sceneBreakSymbol).catch(() => { /* no scene breaks yet is fine */ });
-
-      // 2. Export/design settings into the shared store
-      setHeadingGap(design.headingGap);
-      setChapterStartPosition(design.chapterStartPosition);
-      setDropCaps(design.dropCaps);
-      setDropCapLines(design.dropCapLines);
-      setDropCapStyle(design.dropCapStyle);
-      setSceneBreakSymbol(design.sceneBreakSymbol);
-      setRunningHeader(design.runningHeader);
-      setTrimSize(design.trimSize);
-      setBindingType(design.bindingType as 'paperback' | 'hardcover' | 'spiral');
-
+      await applyBookDesign(design);
       setApplied(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

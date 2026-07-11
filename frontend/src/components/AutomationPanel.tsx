@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { callGas } from '../hooks/useGasBridge';
 import { useAppStore } from '../store/appStore';
 
@@ -15,6 +15,53 @@ export function AutomationPanel() {
     const [pageType, setPageType] = useState('lines');
     const [pageCount, setPageCount] = useState(120);
     const [journalResult, setJournalResult] = useState<{ downloadUrl: string; filename: string; sizeFormatted?: string } | null>(null);
+
+    // Batch export state (driven by the Series Library)
+    interface SeriesLib { series: { id: string; name: string; books: { title: string; url: string }[] }[] }
+    const [seriesLib, setSeriesLib] = useState<SeriesLib | null>(null);
+    const [batchSeriesId, setBatchSeriesId] = useState<string>('');
+    const [batchProgress, setBatchProgress] = useState<string>('');
+    const [batchResults, setBatchResults] = useState<{ title: string; downloadUrl?: string; filename?: string; error?: string }[]>([]);
+
+    useEffect(() => {
+        callGas<SeriesLib>('getSeriesLibrary')
+            .then(lib => {
+                setSeriesLib(lib);
+                if (lib.series.length > 0) setBatchSeriesId(lib.series[0].id);
+            })
+            .catch(() => setSeriesLib({ series: [] }));
+    }, []);
+
+    const handleBatchExport = async () => {
+        const series = seriesLib?.series.find(s => s.id === batchSeriesId);
+        if (!series || series.books.length === 0) {
+            setStatus({ text: 'Pick a series with at least one book (add books in the Box Sets tab).', ok: false });
+            return;
+        }
+        setApplying(true);
+        setStatus(null);
+        setBatchResults([]);
+        const results: typeof batchResults = [];
+        for (let i = 0; i < series.books.length; i++) {
+            const book = series.books[i];
+            setBatchProgress(`Exporting ${i + 1}/${series.books.length}: ${book.title}…`);
+            try {
+                const res = await callGas<{ downloadUrl: string; filename: string }>('exportBoxSetEpub', {
+                    urls: [book.url],
+                    includeBookTitles: false,
+                    metadataOverrides: { title: book.title },
+                });
+                results.push({ title: book.title, downloadUrl: res.downloadUrl, filename: res.filename });
+            } catch (err) {
+                results.push({ title: book.title, error: err instanceof Error ? err.message : String(err) });
+            }
+            setBatchResults([...results]);
+        }
+        setBatchProgress('');
+        const ok = results.filter(r => r.downloadUrl).length;
+        setStatus({ text: `Batch complete: ${ok}/${series.books.length} books exported.`, ok: ok > 0 });
+        setApplying(false);
+    };
 
     const handleGenerateJournal = async () => {
         setApplying(true);
@@ -98,29 +145,52 @@ export function AutomationPanel() {
                         </div>
 
                         <div className="space-y-2">
-                            <label className="text-[11px] font-bold text-gray-700 flex items-center gap-1.5">
-                                <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-gray-400">
-                                    <path fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm2 4A.75.75 0 014.75 8h10.5a.75.75 0 010 1.5H4.75A.75.75 0 014 8.75zm2 4a.75.75 0 01.75-.75h6.5a.75.75 0 010 1.5h-6.5a.75.75 0 01-.75-.75z" clipRule="evenodd" />
-                                </svg>
-                                Select Source Folder
-                            </label>
-                            <button className="w-full py-2.5 px-3 bg-white border border-gray-200 rounded-xl text-[11px] font-semibold text-gray-600 hover:border-bookify-400 hover:text-bookify-600 transition-all flex items-center justify-center gap-2">
-                                <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                                    <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
-                                </svg>
-                                Browse Google Drive
-                            </button>
+                            <label className="text-[11px] font-bold text-gray-700 block">Series to export</label>
+                            {seriesLib === null && <p className="text-[11px] text-gray-400">Loading your series library…</p>}
+                            {seriesLib !== null && seriesLib.series.length === 0 && (
+                                <div className="p-4 bg-gray-50 border border-gray-100 rounded-xl text-center">
+                                    <p className="text-[11px] text-gray-400 font-medium">No series yet — create one in the 📦 Box Sets tab first.</p>
+                                </div>
+                            )}
+                            {seriesLib !== null && seriesLib.series.length > 0 && (
+                                <select
+                                    value={batchSeriesId}
+                                    onChange={(e) => setBatchSeriesId(e.target.value)}
+                                    className="w-full text-[12px] bg-white border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-bookify-500 transition-colors"
+                                >
+                                    {seriesLib.series.map(s => (
+                                        <option key={s.id} value={s.id}>{s.name} ({s.books.length} books)</option>
+                                    ))}
+                                </select>
+                            )}
                         </div>
 
-                        <div className="p-4 bg-gray-50 border border-gray-100 rounded-xl text-center">
-                            <p className="text-[11px] text-gray-400 font-medium">No folder selected.</p>
-                        </div>
+                        {status && activeSection === 'batch' && (
+                            <div className={`p-2 rounded-lg text-[11px] border ${status.ok ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                                {status.text}
+                            </div>
+                        )}
 
-                        <button className="w-full py-3 bg-gradient-to-r from-bookify-600 to-indigo-600 hover:from-bookify-500 hover:to-indigo-500 text-white rounded-xl text-[12px] font-bold shadow-sm shadow-bookify-500/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
-                            <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                            </svg>
-                            Batch Export
+                        {batchResults.length > 0 && (
+                            <div className="space-y-1.5">
+                                {batchResults.map((r, i) => (
+                                    <div key={i} className="flex items-center gap-2 p-2 bg-white border border-gray-100 rounded-lg">
+                                        <span className="text-[11px]">{r.downloadUrl ? '✅' : '❌'}</span>
+                                        <span className="text-[11px] font-semibold text-gray-700 truncate flex-1">{r.title}</span>
+                                        {r.downloadUrl
+                                            ? <a href={r.downloadUrl} target="_blank" rel="noreferrer" className="text-[10px] font-bold text-bookify-600 hover:underline shrink-0">Download</a>
+                                            : <span className="text-[9px] text-red-400 truncate max-w-[40%]">{r.error}</span>}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <button
+                            onClick={handleBatchExport}
+                            disabled={applying || !seriesLib || seriesLib.series.length === 0}
+                            className="w-full py-3 bg-gradient-to-r from-bookify-600 to-indigo-600 hover:from-bookify-500 hover:to-indigo-500 text-white rounded-xl text-[12px] font-bold shadow-sm shadow-bookify-500/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                            {applying && batchProgress ? batchProgress : '⚡ Batch Export All Books (EPUB)'}
                         </button>
                     </div>
                 )}
