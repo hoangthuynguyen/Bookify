@@ -509,22 +509,31 @@ function insertFrontMatter(type, data, position) {
         break;
 
       case 'copyright':
-        var cpPara = addPara('Copyright');
+        var isVi = data.lang === 'vi';
+        var cpPara = addPara(isVi ? 'B\u1EA3n quy\u1EC1n' : 'Copyright');
         cpPara.setHeading(DocumentApp.ParagraphHeading.HEADING1);
         cpPara.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
 
         var year = data.year || new Date().getFullYear();
-        var cpText = 'Copyright \u00A9 ' + year + ' ' + (data.author || 'Author Name') + '\n\n' +
-          'All rights reserved. No part of this publication may be reproduced, ' +
-          'distributed, or transmitted in any form or by any means without the prior ' +
-          'written permission of the publisher.\n\n' +
-          (data.isbn ? 'ISBN: ' + data.isbn + '\n\n' : '') +
-          (data.publisher ? 'Published by ' + data.publisher + '\n' : '') +
-          (data.edition ? data.edition + '\n' : '');
+        var defaultNotice = isVi
+          ? 'B\u1EA3o l\u01B0u m\u1ECDi quy\u1EC1n. Kh\u00F4ng ph\u1EA7n n\u00E0o c\u1EE7a \u1EA5n ph\u1EA9m n\u00E0y \u0111\u01B0\u1EE3c ph\u00E9p sao ch\u00E9p, '
+            + 'l\u01B0u tr\u1EEF trong h\u1EC7 th\u1ED1ng truy xu\u1EA5t, ho\u1EB7c truy\u1EC1n t\u1EA3i d\u01B0\u1EDBi b\u1EA5t k\u1EF3 h\u00ECnh th\u1EE9c n\u00E0o \u2014 '
+            + '\u0111i\u1EC7n t\u1EED, photocopy, ghi \u00E2m hay h\u00ECnh th\u1EE9c kh\u00E1c \u2014 khi ch\u01B0a c\u00F3 s\u1EF1 \u0111\u1ED3ng \u00FD '
+            + 'tr\u01B0\u1EDBc b\u1EB1ng v\u0103n b\u1EA3n c\u1EE7a t\u00E1c gi\u1EA3 v\u00E0 nh\u00E0 xu\u1EA5t b\u1EA3n.'
+          : 'All rights reserved. No part of this publication may be reproduced, '
+            + 'distributed, or transmitted in any form or by any means without the prior '
+            + 'written permission of the publisher.';
+
+        var cpText = (isVi ? 'B\u1EA3n quy\u1EC1n \u00A9 ' : 'Copyright \u00A9 ') + year + ' '
+          + (data.author || (isVi ? 'T\u00E1c gi\u1EA3' : 'Author Name')) + '\n\n'
+          + (data.copyrightText || defaultNotice) + '\n\n'
+          + (data.isbn ? 'ISBN: ' + data.isbn + '\n\n' : '')
+          + (data.publisher ? (isVi ? 'Xu\u1EA5t b\u1EA3n b\u1EDFi ' : 'Published by ') + data.publisher + '\n' : '')
+          + (data.edition ? data.edition + '\n' : '');
 
         var bodyPara = addPara(cpText);
         bodyPara.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
-        
+
         if (isFront) addPageBreak();
         break;
 

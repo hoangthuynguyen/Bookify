@@ -395,12 +395,24 @@ export function FormattingPanel() {
                           <select
                             className="w-full text-sm p-2 bg-white border border-gray-200 rounded text-xs mb-1 outline-none focus:border-bookify-500 focus:ring-1"
                             onChange={(e) => {
-                              if (e.target.value === 'Standard') setFmData({ ...fmData, copyrightText: 'All Rights Reserved.' });
-                              if (e.target.value === 'CC') setFmData({ ...fmData, copyrightText: 'Creative Commons Attribution-NonCommercial (CC BY-NC) 4.0 Intl. License.' });
-                              if (e.target.value === 'PD') setFmData({ ...fmData, copyrightText: 'Public Domain.' });
+                              if (e.target.value === 'Standard') setFmData({ ...fmData, copyrightText: '', lang: undefined });
+                              if (e.target.value === 'VN') setFmData({
+                                ...fmData,
+                                lang: 'vi',
+                                copyrightText: 'Bảo lưu mọi quyền. Không phần nào của ấn phẩm này được phép sao chép, lưu trữ trong hệ thống truy xuất, hoặc truyền tải dưới bất kỳ hình thức nào — điện tử, photocopy, ghi âm hay hình thức khác — khi chưa có sự đồng ý trước bằng văn bản của tác giả và nhà xuất bản.',
+                              });
+                              if (e.target.value === 'VN-CC') setFmData({
+                                ...fmData,
+                                lang: 'vi',
+                                copyrightText: 'Tác phẩm được phát hành theo giấy phép Creative Commons Ghi công – Phi thương mại (CC BY-NC) 4.0 Quốc tế. Được phép chia sẻ có ghi nguồn, không dùng cho mục đích thương mại.',
+                              });
+                              if (e.target.value === 'CC') setFmData({ ...fmData, lang: undefined, copyrightText: 'Creative Commons Attribution-NonCommercial (CC BY-NC) 4.0 Intl. License.' });
+                              if (e.target.value === 'PD') setFmData({ ...fmData, lang: undefined, copyrightText: 'Public Domain.' });
                             }}
                           >
                             <option value="">-- Choose Template --</option>
+                            <option value="VN">🇻🇳 Bản quyền tiếng Việt (chuẩn xuất bản)</option>
+                            <option value="VN-CC">🇻🇳 Creative Commons tiếng Việt</option>
                             <option value="Standard">All Rights Reserved (Standard KDP)</option>
                             <option value="CC">Creative Commons (CC BY-NC)</option>
                             <option value="PD">Public Domain</option>
