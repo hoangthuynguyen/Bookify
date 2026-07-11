@@ -64,6 +64,13 @@ export function AIDesignerPanel() {
   const [designVia, setDesignVia] = useState<string>('');
   const [applied, setApplied] = useState(false);
 
+  // AI copywriter (blurb / author bio / tagline)
+  const [copyKind, setCopyKind] = useState<'blurb' | 'author-bio' | 'tagline'>('blurb');
+  const [copyText, setCopyText] = useState('');
+  const [copyVia, setCopyVia] = useState('');
+  const [copyBusy, setCopyBusy] = useState<string | null>(null);
+  const [copyInserted, setCopyInserted] = useState(false);
+
   // Restore saved config (v2 multi-provider; migrate v1 single-provider)
   useEffect(() => {
     try {
@@ -169,6 +176,79 @@ export function AIDesignerPanel() {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(null);
+    }
+  }
+
+  async function handleGenerateCopy() {
+    const chain: Provider[] = [
+      provider,
+      ...PROVIDERS.map(x => x.id).filter(p => p !== provider && autoFallback && hasCreds(p)),
+    ].filter(hasCreds);
+    if (chain.length === 0) {
+      setError('Hãy nhập API key cho ít nhất một provider trước.');
+      return;
+    }
+    setCopyBusy('Đang đọc bản thảo…');
+    setError(null);
+    setCopyText('');
+    setCopyInserted(false);
+    persistConfig(cfg, provider, autoFallback, rememberKeys);
+    try {
+      const content = await callGas<{ html: string; metadata: { title?: string } }>('getDocumentContent');
+      const sample = content.html
+        .replace(/<style[\s\S]*?<\/style>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 4000);
+
+      const errors: string[] = [];
+      for (const p of chain) {
+        setCopyBusy(`Đang viết bằng ${providerLabel(p)}…`);
+        try {
+          const c = cfg[p];
+          const res = await fetch(`${API_URL}/ai/generate-copy`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              provider: p,
+              apiKey: c.apiKey.trim() || undefined,
+              model: c.model.trim() || undefined,
+              baseUrl: p === 'custom' ? c.baseUrl.trim() : undefined,
+              kind: copyKind,
+              brief: brief.trim() || undefined,
+              metadata: { title: content.metadata?.title, genre },
+              sample,
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || `Lỗi HTTP ${res.status}`);
+          setCopyText(data.text);
+          setCopyVia(`${providerLabel(p)} · ${data.model}`);
+          setCopyBusy(null);
+          return;
+        } catch (err) {
+          errors.push(`${providerLabel(p)}: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+      setError(`Tất cả provider đều lỗi:\n${errors.join('\n')}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCopyBusy(null);
+    }
+  }
+
+  async function handleInsertCopy() {
+    if (!copyText.trim()) return;
+    setCopyBusy('Đang chèn vào tài liệu…');
+    try {
+      await callGas('insertFrontMatter', 'about-author', { text: copyText }, 'back');
+      setCopyInserted(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCopyBusy(null);
     }
   }
 
@@ -351,6 +431,65 @@ export function AIDesignerPanel() {
           </div>
         </div>
       )}
+
+      {/* ✍️ AI Copywriter */}
+      <details className="border border-gray-200 rounded-xl overflow-hidden group">
+        <summary className="cursor-pointer px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors list-none flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-gray-800">✍️ AI Viết Nội Dung</p>
+            <p className="text-[10px] text-gray-400">Lời giới thiệu bìa sau, giới thiệu tác giả, tagline — cùng bộ API key ở trên</p>
+          </div>
+          <span className="text-gray-400 group-open:rotate-90 transition-transform text-xs">▶</span>
+        </summary>
+        <div className="p-4 space-y-3 bg-white">
+          <div>
+            <label className="text-[11px] text-gray-500 block mb-1">Loại nội dung</label>
+            <select value={copyKind} onChange={e => { setCopyKind(e.target.value as typeof copyKind); setCopyText(''); }} className="select-field">
+              <option value="blurb">📕 Lời giới thiệu bìa sau (blurb, 150–200 từ)</option>
+              <option value="author-bio">👤 Giới thiệu tác giả (80–120 từ)</option>
+              <option value="tagline">⚡ Tagline bìa trước (1 câu đắt giá)</option>
+            </select>
+          </div>
+
+          <button
+            onClick={handleGenerateCopy}
+            disabled={!!copyBusy}
+            className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-500 text-white rounded-lg text-xs font-bold shadow-sm disabled:opacity-50 hover:opacity-90 transition-opacity"
+          >
+            {copyBusy || '✍️ Viết Nội Dung'}
+          </button>
+
+          {copyText && (
+            <div className="space-y-2 animate-slide-up">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] text-gray-400">via {copyVia} — sửa trực tiếp bên dưới trước khi dùng</p>
+              </div>
+              <textarea
+                rows={copyKind === 'tagline' ? 2 : 7}
+                value={copyText}
+                onChange={e => setCopyText(e.target.value)}
+                className="input-field resize-y !text-[11px] leading-relaxed"
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => { navigator.clipboard?.writeText(copyText); }}
+                  className="py-2 bg-gray-800 text-white rounded-lg text-[10px] font-bold hover:bg-gray-900 transition-colors"
+                >
+                  📋 Copy
+                </button>
+                <button
+                  onClick={handleInsertCopy}
+                  disabled={!!copyBusy || copyInserted || copyKind === 'tagline'}
+                  title={copyKind === 'tagline' ? 'Tagline dùng cho bìa — copy và dán vào thiết kế bìa' : 'Chèn thành trang ở cuối sách'}
+                  className="py-2 bg-bookify-600 text-white rounded-lg text-[10px] font-bold disabled:opacity-40 hover:bg-bookify-700 transition-colors"
+                >
+                  {copyInserted ? '✓ Đã chèn cuối sách' : '📄 Chèn vào cuối sách'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </details>
     </div>
   );
 }

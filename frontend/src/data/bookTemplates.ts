@@ -186,6 +186,34 @@ export const BOOK_TEMPLATES: BookTemplate[] = [
       largePrint: true,
     },
   },
+  {
+    id: 'vn-tho',
+    name: 'Thơ Việt',
+    emoji: '🎋',
+    category: 'vietnamese',
+    description: 'Khổ nhỏ thanh mảnh, chữ nhẹ giãn dòng thoáng, mỗi bài thơ mở giữa trang tĩnh lặng.',
+    design: {
+      bodyFont: 'EB Garamond', headingFont: 'EB Garamond', fontSize: 12, lineHeight: 1.8,
+      colorAccent: '#4a5568', dropCaps: false, dropCapLines: 2, dropCapStyle: 'classic',
+      sceneBreakSymbol: '✽', headingGap: 'dramatic', chapterStartPosition: 'middle',
+      trimSize: '5x8', bindingType: 'paperback', runningHeader: 'none',
+      language: 'vi', tocTitle: 'Mục lục',
+    },
+  },
+  {
+    id: 'vn-truyen-ngan',
+    name: 'Truyện ngắn & Tuyển tập',
+    emoji: '📰',
+    category: 'vietnamese',
+    description: 'Mỗi truyện là một "chương" mở trang mới trang trọng — hợp tuyển tập nhiều tác giả.',
+    design: {
+      bodyFont: 'Literata', headingFont: 'Montserrat', fontSize: 11.5, lineHeight: 1.6,
+      colorAccent: '#0f6266', dropCaps: true, dropCapLines: 3, dropCapStyle: 'classic',
+      sceneBreakSymbol: '◇ ◇ ◇', headingGap: 'spacious', chapterStartPosition: 'middle',
+      trimSize: '5.5x8.5', bindingType: 'paperback', runningHeader: 'chapter_title',
+      language: 'vi', tocTitle: 'Mục lục',
+    },
+  },
 
   // ─── Fiction ───
   {

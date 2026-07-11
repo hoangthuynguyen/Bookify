@@ -174,6 +174,42 @@ function sanitizeDesign(raw) {
 }
 
 // ---------------------------------------------------------------------------
+// Shared provider validation + dispatch
+// ---------------------------------------------------------------------------
+
+/** Returns an error string, or null when the provider input is valid. */
+function validateProviderInput({ provider, apiKey, baseUrl }) {
+  if (!provider || !['anthropic', 'openai', 'gemini', 'openrouter', 'custom'].includes(provider)) {
+    return 'provider must be anthropic | openai | gemini | openrouter | custom';
+  }
+  if (!apiKey && provider !== 'custom') return 'apiKey is required';
+  if (provider === 'custom' && !baseUrl) return 'baseUrl is required for custom provider';
+  if (provider === 'custom' && !/^https?:\/\//.test(baseUrl)) return 'baseUrl must be an http(s) URL';
+  // SSRF guard: block loopback/private/link-local targets in production.
+  // (A hosted backend could never reach a user's local Ollama anyway.)
+  if (provider === 'custom' && process.env.NODE_ENV === 'production') {
+    const host = new URL(baseUrl).hostname;
+    const isPrivate =
+      host === 'localhost' || host.endsWith('.local') || host.endsWith('.internal') ||
+      /^127\.|^10\.|^192\.168\.|^169\.254\.|^0\.|^::1$|^\[?::1\]?$|^172\.(1[6-9]|2\d|3[01])\./.test(host);
+    if (isPrivate) return 'baseUrl must be a public endpoint (private/internal addresses are not allowed)';
+  }
+  return null;
+}
+
+async function callProvider({ provider, apiKey, model, baseUrl }, prompt) {
+  if (provider === 'anthropic') return callAnthropic(apiKey, model, prompt);
+  if (provider === 'openai') return callOpenAICompatible('https://api.openai.com/v1', apiKey, model || DEFAULT_MODELS.openai, prompt);
+  if (provider === 'gemini') return callGemini(apiKey, model, prompt);
+  if (provider === 'openrouter') {
+    return callOpenAICompatible('https://openrouter.ai/api/v1', apiKey,
+      model || DEFAULT_MODELS.openrouter, prompt,
+      { 'HTTP-Referer': 'https://bookify-ixxa.onrender.com', 'X-Title': 'Bookify' });
+  }
+  return callOpenAICompatible(baseUrl, apiKey, model || 'default', prompt);
+}
+
+// ---------------------------------------------------------------------------
 // POST /ai/suggest-design
 // ---------------------------------------------------------------------------
 
@@ -181,29 +217,8 @@ router.post('/suggest-design', async (req, res) => {
   try {
     const { provider, apiKey, model, baseUrl, brief, metadata, sample } = req.body || {};
 
-    if (!provider || !['anthropic', 'openai', 'gemini', 'openrouter', 'custom'].includes(provider)) {
-      return res.status(400).json({ error: 'provider must be anthropic | openai | gemini | openrouter | custom' });
-    }
-    if (!apiKey && provider !== 'custom') {
-      return res.status(400).json({ error: 'apiKey is required' });
-    }
-    if (provider === 'custom' && !baseUrl) {
-      return res.status(400).json({ error: 'baseUrl is required for custom provider' });
-    }
-    if (provider === 'custom' && !/^https?:\/\//.test(baseUrl)) {
-      return res.status(400).json({ error: 'baseUrl must be an http(s) URL' });
-    }
-    // SSRF guard: block loopback/private/link-local targets in production.
-    // (A hosted backend could never reach a user's local Ollama anyway.)
-    if (provider === 'custom' && process.env.NODE_ENV === 'production') {
-      const host = new URL(baseUrl).hostname;
-      const isPrivate =
-        host === 'localhost' || host.endsWith('.local') || host.endsWith('.internal') ||
-        /^127\.|^10\.|^192\.168\.|^169\.254\.|^0\.|^::1$|^\[?::1\]?$|^172\.(1[6-9]|2\d|3[01])\./.test(host);
-      if (isPrivate) {
-        return res.status(400).json({ error: 'baseUrl must be a public endpoint (private/internal addresses are not allowed)' });
-      }
-    }
+    const invalid = validateProviderInput({ provider, apiKey, baseUrl });
+    if (invalid) return res.status(400).json({ error: invalid });
 
     const prompt = buildPrompt({
       title: metadata?.title,
@@ -213,20 +228,7 @@ router.post('/suggest-design', async (req, res) => {
       sample,
     });
 
-    let text;
-    if (provider === 'anthropic') {
-      text = await callAnthropic(apiKey, model, prompt);
-    } else if (provider === 'openai') {
-      text = await callOpenAICompatible('https://api.openai.com/v1', apiKey, model || DEFAULT_MODELS.openai, prompt);
-    } else if (provider === 'gemini') {
-      text = await callGemini(apiKey, model, prompt);
-    } else if (provider === 'openrouter') {
-      text = await callOpenAICompatible('https://openrouter.ai/api/v1', apiKey,
-        model || DEFAULT_MODELS.openrouter, prompt,
-        { 'HTTP-Referer': 'https://bookify-ixxa.onrender.com', 'X-Title': 'Bookify' });
-    } else {
-      text = await callOpenAICompatible(baseUrl, apiKey, model || 'default', prompt);
-    }
+    const text = await callProvider({ provider, apiKey, model, baseUrl }, prompt);
 
     const design = sanitizeDesign(parseDesignJson(text));
     res.json({ design, provider, model: model || DEFAULT_MODELS[provider] || 'default' });
@@ -234,6 +236,60 @@ router.post('/suggest-design', async (req, res) => {
     // Never echo the request body (it contains the API key)
     console.error('[AI] suggest-design failed:', error.message);
     res.status(502).json({ error: `AI design failed: ${error.message}` });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /ai/generate-copy — back-cover blurb, author bio, tagline (BYOK)
+// ---------------------------------------------------------------------------
+
+const COPY_KINDS = {
+  blurb: 'a compelling BACK-COVER BLURB (150-200 words) that hooks readers without spoiling the ending. '
+    + 'Marketing voice, ends with an irresistible pull.',
+  'author-bio': 'a warm, professional ABOUT-THE-AUTHOR bio (80-120 words), third person. '
+    + 'If the sample gives no author facts, write a graceful fill-in-the-blanks template the author can edit.',
+  tagline: 'ONE striking TAGLINE (max 15 words) for the front cover. Return only the tagline.',
+};
+
+function buildCopyPrompt(kind, { title, author, genre }, brief, sample) {
+  return `You are a book marketing copywriter. Based on the book below, write ${COPY_KINDS[kind]}
+
+CRITICAL: Reply in the SAME LANGUAGE as the book sample (e.g. Vietnamese sample -> Vietnamese copy).
+Return ONLY the copy text - no preamble, no quotes, no markdown.
+
+BOOK:
+- Title: ${title || 'Unknown'}
+- Author: ${author || 'Unknown'}
+- Genre: ${genre || 'infer from sample'}
+${brief ? `- Notes from the author: ${brief}` : ''}
+- Sample:
+"""
+${(sample || '').slice(0, 4000)}
+"""`;
+}
+
+router.post('/generate-copy', async (req, res) => {
+  try {
+    const { provider, apiKey, model, baseUrl, kind, brief, metadata, sample } = req.body || {};
+
+    const invalid = validateProviderInput({ provider, apiKey, baseUrl });
+    if (invalid) return res.status(400).json({ error: invalid });
+    if (!COPY_KINDS[kind]) {
+      return res.status(400).json({ error: `kind must be one of: ${Object.keys(COPY_KINDS).join(', ')}` });
+    }
+
+    const prompt = buildCopyPrompt(kind, metadata || {}, brief, sample);
+    const text = await callProvider({ provider, apiKey, model, baseUrl }, prompt);
+
+    res.json({
+      text: String(text || '').trim().slice(0, 4000),
+      kind,
+      provider,
+      model: model || DEFAULT_MODELS[provider] || 'default',
+    });
+  } catch (error) {
+    console.error('[AI] generate-copy failed:', error.message);
+    res.status(502).json({ error: `AI copy generation failed: ${error.message}` });
   }
 });
 

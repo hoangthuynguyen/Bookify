@@ -470,6 +470,36 @@ export function ThemePanel() {
                           {appliedTemplateId === t.id ? '✓ Applied' : applying ? '…' : 'Apply'}
                         </button>
                       </div>
+
+                      {/* Bộ trang đầu sách VN: Trang tiêu đề + Bản quyền tiếng Việt */}
+                      {appliedTemplateId === t.id && t.category === 'vietnamese' && (
+                        <div className="px-3 pb-2.5">
+                          <button
+                            onClick={async () => {
+                              setApplying(true);
+                              try {
+                                const content = await callGas<{ metadata: { title?: string } }>('getDocumentContent');
+                                const year = new Date().getFullYear();
+                                // Chèn bản quyền trước, trang tiêu đề sau → tiêu đề đứng đầu sách
+                                await callGas('insertFrontMatter', 'copyright', { lang: 'vi', year, author: 'Tác giả' }, 'front');
+                                await callGas('insertFrontMatter', 'title-page', {
+                                  title: content.metadata?.title || 'Tựa Sách',
+                                  author: 'Tác giả',
+                                }, 'front');
+                                setStatus({ text: 'Đã tạo Trang tiêu đề + Trang bản quyền tiếng Việt ở đầu sách — sửa tên tác giả trong tài liệu nhé!', ok: true });
+                              } catch (err) {
+                                setStatus({ text: err instanceof Error ? err.message : String(err), ok: false });
+                              } finally {
+                                setApplying(false);
+                              }
+                            }}
+                            disabled={applying}
+                            className="w-full py-1.5 rounded-lg text-[10px] font-bold border-2 border-bookify-200 text-bookify-700 bg-bookify-50 hover:bg-bookify-100 transition-colors disabled:opacity-50"
+                          >
+                            {applying ? 'Đang tạo…' : '📄 Tạo trang đầu sách (Tiêu đề + Bản quyền VN)'}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
