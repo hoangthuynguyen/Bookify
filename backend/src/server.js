@@ -8,6 +8,7 @@ const fontRoutes = require('./routes/fonts');
 const validateRoutes = require('./routes/validate');
 const userRoutes = require('./routes/user');
 const themeRoutes = require('./routes/themes');
+const aiRoutes = require('./routes/ai');
 const { authMiddleware } = require('./middleware/auth');
 const { exportLimiter, generalLimiter } = require('./middleware/rateLimiter');
 
@@ -80,6 +81,9 @@ app.get('/health', (req, res) => {
 // =============================================================================
 
 app.use('/fonts', generalLimiter, fontRoutes);
+
+// AI Book Designer (BYOK - user provides their own LLM API key per request)
+app.use('/ai', generalLimiter, aiRoutes);
 
 // =============================================================================
 // Authenticated Routes

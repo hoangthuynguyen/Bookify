@@ -38,6 +38,12 @@ interface AppState {
   setDropCapLines: (n: number) => void;
   dropCapStyle: DropCapStyle;
   setDropCapStyle: (s: DropCapStyle) => void;
+  dropCaps: boolean;
+  setDropCaps: (v: boolean) => void;
+  sceneBreakSymbol: string;
+  setSceneBreakSymbol: (s: string) => void;
+  runningHeader: string;
+  setRunningHeader: (h: string) => void;
 
   // Theme state
   selectedThemeId: string | null;
@@ -85,6 +91,12 @@ export const useAppStore = create<AppState>((set) => ({
   setDropCapLines: (n) => set({ dropCapLines: n }),
   dropCapStyle: 'classic',
   setDropCapStyle: (s) => set({ dropCapStyle: s }),
+  dropCaps: false,
+  setDropCaps: (v) => set({ dropCaps: v }),
+  sceneBreakSymbol: '* * *',
+  setSceneBreakSymbol: (s) => set({ sceneBreakSymbol: s }),
+  runningHeader: 'none',
+  setRunningHeader: (h) => set({ runningHeader: h }),
 
   selectedThemeId: null,
   setSelectedThemeId: (id) => set({ selectedThemeId: id }),

@@ -53,15 +53,15 @@ export function ExportPanel() {
     chapterStartPosition,
     largePrint, setLargePrint,
     dropCapLines, dropCapStyle,
+    dropCaps, setDropCaps,
+    sceneBreakSymbol: sceneBreak, setSceneBreakSymbol: setSceneBreak,
+    runningHeader, setRunningHeader,
   } = useAppStore();
 
   const [results, setResults] = useState<Record<string, ExportResult>>({});
-  const [dropCaps, setDropCaps] = useState(false);
-  const [sceneBreak, setSceneBreak] = useState('* * *');
   const [mirrorMargins, setMirrorMargins] = useState(true);
   const [orphanControl, setOrphanControl] = useState(true);
   const [platform, setPlatform] = useState('generic');
-  const [runningHeader, setRunningHeader] = useState('none');
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
   const [isbn, setIsbn] = useState('');

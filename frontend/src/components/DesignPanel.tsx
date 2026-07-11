@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { callGas } from '../hooks/useGasBridge';
 import { useAppStore } from '../store/appStore';
+import { AIDesignerPanel } from './AIDesignerPanel';
 
 // DesignPanel component
 
 export function DesignPanel() {
-    const [activeSubTab, setActiveSubTab] = useState<'headers' | 'typesetting' | 'mockup'>('headers');
+    const [activeSubTab, setActiveSubTab] = useState<'headers' | 'typesetting' | 'mockup' | 'ai'>('ai');
     const {
         chapterStartPosition, setChapterStartPosition,
         headingGap, setHeadingGap,
@@ -53,6 +54,13 @@ export function DesignPanel() {
             {/* ── Sub-navigation ── */}
             <div className="px-4 py-3 bg-white border-b border-gray-100 flex gap-4">
                 <button
+                    onClick={() => setActiveSubTab('ai')}
+                    className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${activeSubTab === 'ai' ? 'bg-violet-100 text-violet-700' : 'text-gray-500 hover:bg-gray-100'
+                        }`}
+                >
+                    ✨ AI Designer
+                </button>
+                <button
                     onClick={() => setActiveSubTab('headers')}
                     className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${activeSubTab === 'headers' ? 'bg-bookify-100 text-bookify-700' : 'text-gray-500 hover:bg-gray-100'
                         }`}
@@ -76,6 +84,9 @@ export function DesignPanel() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                {/* ── AI Book Designer (BYOK) ── */}
+                {activeSubTab === 'ai' && <AIDesignerPanel />}
+
                 {/* ── Visual Chapter Header & Scene Break Builder ── */}
                 {activeSubTab === 'headers' && (
                     <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 space-y-4">
