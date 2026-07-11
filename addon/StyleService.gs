@@ -787,17 +787,24 @@ function globalReplaceText(findText, replaceText) {
 
 /**
  * Insert a styled Table of Contents at the beginning of the document.
- * Creates a visually formatted TOC with dot leaders and indented entries.
+ * Creates a visually formatted TOC with leaders and indented entries.
+ * @param {object} options - { leader: 'dots'|'space'|'line', levels: number[] }
  * @returns {{ success: boolean, count: number }}
  */
-function insertStyledToC() {
+function insertStyledToC(options) {
   try {
+    options = options || {};
+    var leader = options.leader || 'dots';
+    var levels = (options.levels && options.levels.length) ? options.levels : [1, 2, 3];
+
     var doc = DocumentApp.getActiveDocument();
     var body = doc.getBody();
-    var headings = extractHeadings_(body);
-    
+    var headings = extractHeadings_(body).filter(function (h) {
+      return levels.indexOf(h.level) !== -1;
+    });
+
     if (headings.length === 0) {
-      throw new Error('No headings found. Use Heading 1/2/3 styles to define chapters and sections.');
+      throw new Error('No headings found for the selected levels. Use Heading styles to define chapters and sections.');
     }
     
     // Insert at the beginning of the document
@@ -826,9 +833,15 @@ function insertStyledToC() {
     for (var i = 0; i < headings.length; i++) {
       var h = headings[i];
       var indent = (h.level - 1) * 24;
-      
+
+      // Decorative leader after the title (EPUB TOCs have no page numbers)
       var entryText = h.text;
-      
+      if (leader === 'dots') {
+        entryText += ' ' + new Array(18).join('.');
+      } else if (leader === 'line') {
+        entryText += ' ' + new Array(14).join('_');
+      }
+
       var entryPara = body.insertParagraph(insertIndex, entryText);
       
       var entryStyle = entryPara.editAsText();
@@ -855,10 +868,16 @@ function insertStyledToC() {
         entryPara.setSpacingAfter(2);
       }
       
+      // Leader dots/line rendered light gray so titles stay prominent
+      if (entryText.length > h.text.length) {
+        entryStyle.setForegroundColor(h.text.length, entryText.length - 1, '#cccccc');
+        entryStyle.setBold(h.text.length, entryText.length - 1, false);
+      }
+
       entryPara.setIndentStart(indent);
       insertIndex++;
     }
-    
+
     // Add a page break after the TOC
     var breakPara = body.insertParagraph(insertIndex, '');
     breakPara.setPageBreakBefore(true);

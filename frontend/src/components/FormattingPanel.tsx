@@ -73,6 +73,10 @@ export function FormattingPanel() {
   // Drop cap design (shared with export settings via store)
   const { dropCapLines, setDropCapLines, dropCapStyle, setDropCapStyle } = useAppStore();
 
+  // ToC Stylist
+  const [tocLeader, setTocLeader] = useState<'dots' | 'space' | 'line'>('dots');
+  const [tocLevels, setTocLevels] = useState<Record<number, boolean>>({ 1: true, 2: true, 3: false, 4: false });
+
   async function withStatus<T>(fn: () => Promise<T>, successMsg: string) {
     setLoading(true);
     setStatus(null);
@@ -264,7 +268,11 @@ export function FormattingPanel() {
               <div className="space-y-2 bg-gray-50 p-3 rounded-lg border border-gray-100 mb-3">
                 <div>
                   <label className="text-[10px] font-semibold text-gray-600 mb-1 block">Alignment & Leader</label>
-                  <select className="w-full text-sm p-2 bg-white border border-gray-300 rounded outline-none focus:border-bookify-500 focus:ring-1">
+                  <select
+                    value={tocLeader}
+                    onChange={e => setTocLeader(e.target.value as 'dots' | 'space' | 'line')}
+                    className="w-full text-sm p-2 bg-white border border-gray-300 rounded outline-none focus:border-bookify-500 focus:ring-1"
+                  >
                     <option value="dots">Dotted Leader (.....)</option>
                     <option value="space">Blank Space</option>
                     <option value="line">Solid Line (____)</option>
@@ -274,17 +282,26 @@ export function FormattingPanel() {
                 <div className="pt-2">
                   <label className="text-[10px] font-semibold text-gray-600 mb-1 block">Heading Levels to Include</label>
                   <div className="flex gap-3 text-xs font-medium text-gray-700 py-1 flex-wrap">
-                    <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" defaultChecked className="w-3.5 h-3.5 text-bookify-600" /> H1</label>
-                    <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" defaultChecked className="w-3.5 h-3.5 text-bookify-600" /> H2</label>
-                    <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" className="w-3.5 h-3.5 text-bookify-600" /> H3</label>
-                    <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" className="w-3.5 h-3.5 text-bookify-600" /> H4</label>
+                    {[1, 2, 3, 4].map(lv => (
+                      <label key={lv} className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!tocLevels[lv]}
+                          onChange={e => setTocLevels(prev => ({ ...prev, [lv]: e.target.checked }))}
+                          className="w-3.5 h-3.5 text-bookify-600"
+                        /> H{lv}
+                      </label>
+                    ))}
                   </div>
                   <p className="text-[9px] text-gray-400 mt-1">Hide sub-headings for a cleaner, professional look. H4 is useful for detailed non-fiction.</p>
                 </div>
               </div>
 
               <button
-                onClick={() => withStatus(() => callGas('insertStyledToC'), 'Custom Table of Contents inserted!')}
+                onClick={() => withStatus(() => callGas('insertStyledToC', {
+                  leader: tocLeader,
+                  levels: [1, 2, 3, 4].filter(lv => tocLevels[lv]),
+                }), 'Custom Table of Contents inserted!')}
                 disabled={loading}
                 className="w-full py-2 bg-bookify-600 text-white rounded-md text-xs font-bold disabled:opacity-50 hover:bg-bookify-700 transition-colors shadow-sm mt-2"
               >
