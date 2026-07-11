@@ -774,3 +774,20 @@ function runStorePreflight(storeId) {
     throw new Error('Preflight check failed: ' + error.message);
   }
 }
+
+/**
+ * Generate a print-ready low-content interior PDF (journals, planners).
+ * @param {object} settings - { pageStyle, pageCount, trimSize }
+ * @returns {object} { downloadUrl, filename, sizeFormatted, pageCount }
+ */
+function exportLowContent(settings) {
+  try {
+    return callExportAPI('/export/low-content', {
+      pageStyle: settings.pageStyle || 'lines',
+      pageCount: settings.pageCount || 120,
+      trimSize: settings.trimSize || '6x9',
+    });
+  } catch (error) {
+    throw new Error('Low-content export failed: ' + error.message);
+  }
+}

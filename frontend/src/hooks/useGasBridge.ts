@@ -10,7 +10,7 @@ const pendingCallbacks = new Map<string, { resolve: (v: unknown) => void; reject
 const LONG_TIMEOUT_METHODS = new Set([
   'exportEpub', 'exportPdf', 'exportDocx', 'exportTxt', 'exportHtml',
   'exportMarkdown', 'exportAzw3', 'exportKfx', 'exportAzw', 'exportMobi',
-  'exportBoxSetEpub',
+  'exportBoxSetEpub', 'exportLowContent',
 ]);
 
 const EXPORT_TIMEOUT_MS = 300_000; // 5 minutes for exports (cold start + generation)

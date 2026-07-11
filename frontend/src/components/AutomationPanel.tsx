@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { callGas } from '../hooks/useGasBridge';
+import { useAppStore } from '../store/appStore';
 
 export function AutomationPanel() {
     const [activeSection, setActiveSection] = useState<'batch' | 'replace' | 'lowcontent' | 'metadata'>('batch');
+    const { trimSize } = useAppStore();
 
     // Find & Replace state
     const [findText, setFindText] = useState('');
@@ -12,6 +14,23 @@ export function AutomationPanel() {
     // Low-Content state
     const [pageType, setPageType] = useState('lines');
     const [pageCount, setPageCount] = useState(120);
+    const [journalResult, setJournalResult] = useState<{ downloadUrl: string; filename: string; sizeFormatted?: string } | null>(null);
+
+    const handleGenerateJournal = async () => {
+        setApplying(true);
+        setStatus(null);
+        setJournalResult(null);
+        try {
+            const res = await callGas<{ downloadUrl: string; filename: string; sizeFormatted?: string }>(
+                'exportLowContent', { pageStyle: pageType, pageCount, trimSize });
+            setJournalResult(res);
+            setStatus({ text: `Generated ${res.filename}`, ok: true });
+        } catch (err) {
+            setStatus({ text: err instanceof Error ? err.message : String(err), ok: false });
+        } finally {
+            setApplying(false);
+        }
+    };
 
     // Metadata State
     const [books, setBooks] = useState([
@@ -232,8 +251,31 @@ export function AutomationPanel() {
                                 <p className="text-[10px] text-gray-400 font-medium mt-3">Preview</p>
                             </div>
 
-                            <button className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-[12px] font-bold shadow-sm transition-all active:scale-[0.98]">
-                                Generate PDF
+                            <p className="text-[10px] text-gray-400">Trim size: <b>{trimSize}</b> (change it in the Export tab)</p>
+
+                            {status && activeSection === 'lowcontent' && (
+                                <div className={`p-2 rounded-lg text-[11px] border ${status.ok ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                                    {status.text}
+                                </div>
+                            )}
+
+                            {journalResult && (
+                                <a
+                                    href={journalResult.downloadUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="block w-full py-2.5 bg-white border-2 border-green-600 text-green-700 rounded-xl text-[12px] font-bold text-center hover:bg-green-50 transition-colors"
+                                >
+                                    ⬇ Download {journalResult.filename}{journalResult.sizeFormatted ? ` (${journalResult.sizeFormatted})` : ''}
+                                </a>
+                            )}
+
+                            <button
+                                onClick={handleGenerateJournal}
+                                disabled={applying}
+                                className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-[12px] font-bold shadow-sm transition-all active:scale-[0.98] disabled:opacity-50"
+                            >
+                                {applying ? 'Generating…' : 'Generate PDF'}
                             </button>
                         </div>
                     </div>

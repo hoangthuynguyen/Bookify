@@ -444,6 +444,85 @@ router.post('/markdown', async (req, res) => {
 // GET /export/trim-sizes
 // =============================================================================
 
+// =============================================================================
+// POST /export/low-content
+// Print-ready interiors for journals/planners: lined, graph, dot grid, blank
+// =============================================================================
+
+const PAGE_PATTERNS = {
+  // College ruled: line every 7.1mm; wide ruled: 8.7mm
+  lines: 'repeating-linear-gradient(to bottom, transparent 0, transparent 6.9mm, #b9c3d3 6.9mm, #b9c3d3 7.1mm)',
+  'lines-wide': 'repeating-linear-gradient(to bottom, transparent 0, transparent 8.5mm, #b9c3d3 8.5mm, #b9c3d3 8.7mm)',
+  grids: 'repeating-linear-gradient(to right, transparent 0, transparent 4.85mm, #ccd4de 4.85mm, #ccd4de 5mm), repeating-linear-gradient(to bottom, transparent 0, transparent 4.85mm, #ccd4de 4.85mm, #ccd4de 5mm)',
+  dots: 'radial-gradient(circle, #9aa5b1 0.3mm, transparent 0.45mm)',
+  blank: 'none',
+};
+
+router.post('/low-content', async (req, res) => {
+  try {
+    const { pageStyle, pageCount, trimSize } = req.body;
+    const pattern = PAGE_PATTERNS[pageStyle];
+    if (!pattern) {
+      return res.status(400).json({ error: `pageStyle must be one of: ${Object.keys(PAGE_PATTERNS).join(', ')}` });
+    }
+    const pages = Math.min(800, Math.max(8, parseInt(pageCount) || 120));
+
+    console.log(`[LowContent] ${pageStyle} x${pages} pages (trim: ${trimSize}) by ${req.user.email}`);
+
+    // Absolute sheet height: page content box = trim height minus 0.5in
+    // top/bottom margins (paged media can't resolve height:100% reliably)
+    const { TRIM_SIZES } = require('../services/pdfGenerator');
+    const trim = TRIM_SIZES[trimSize] || TRIM_SIZES['6x9'];
+    const sheetHeightMm = (trim.height - 25.4 - 1).toFixed(1);
+
+    const dotSizing = pageStyle === 'dots' ? 'background-size: 5mm 5mm; background-position: 2.5mm 2.5mm;' : '';
+    const sheets = new Array(pages).fill('<div class="sheet"></div>').join('\n');
+    const html = `<html><head><style>
+      body { margin: 0; }
+      .sheet {
+        page-break-after: always;
+        height: ${sheetHeightMm}mm;
+        background-image: ${pattern};
+        ${dotSizing}
+        background-repeat: repeat;
+      }
+      .sheet:last-child { page-break-after: avoid; }
+    </style></head><body>${sheets}</body></html>`;
+
+    const journalTheme = {
+      title: `${pageStyle} journal`,
+      author: '',
+      // Journals use tighter, symmetric margins than book text blocks
+      margins: { top: '0.5in', bottom: '0.5in', inner: '0.625in', outer: '0.5in' },
+    };
+
+    const { generatePdf } = require('../services/pdfGenerator');
+    const result = await generatePdf(html, trimSize || '6x9', journalTheme, {
+      orphanControl: false,
+      dropCaps: false,
+      runningHeader: 'none',
+      mirrorMargins: true,
+    });
+
+    const filename = `journal_${pageStyle}_${pages}p_${trimSize || '6x9'}.pdf`;
+    const { signedUrl, key } = await uploadExportFile(result.buffer, filename, 'application/pdf', req.user.id);
+    await trySaveHistory(req.user.id, 'low-content', 'pdf', signedUrl, result.buffer.length,
+      { pageStyle, pageCount: pages, trimSize: result.trimSize, r2Key: key });
+
+    console.log(`[LowContent] Complete: ${filename} (${formatBytes(result.buffer.length)})`);
+    res.json({
+      downloadUrl: signedUrl,
+      filename,
+      size: result.buffer.length,
+      sizeFormatted: formatBytes(result.buffer.length),
+      pageCount: result.pageCount || pages,
+    });
+  } catch (error) {
+    console.error('[LowContent] Failed:', error.message);
+    res.status(500).json({ error: `Low-content PDF failed: ${error.message}` });
+  }
+});
+
 router.get('/trim-sizes', (req, res) => {
   try {
     const { getTrimSizes } = require('../services/pdfGenerator');
