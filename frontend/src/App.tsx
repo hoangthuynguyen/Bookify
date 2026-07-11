@@ -1,4 +1,5 @@
 import { useAppStore } from './store/appStore';
+import { HomePanel } from './components/HomePanel';
 import { ExportPanel } from './components/ExportPanel';
 import { FormattingPanel } from './components/FormattingPanel';
 import { ThemePanel } from './components/ThemePanel';
@@ -74,7 +75,13 @@ const IconPublishing = () => (
     <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
   </svg>
 );
+const IconHome = () => (
+  <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+    <path fillRule="evenodd" d="M9.293 2.293a1 1 0 011.414 0l7 7A1 1 0 0117 11h-1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-3a1 1 0 00-1-1H9a1 1 0 00-1 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-6H3a1 1 0 01-.707-1.707l7-7z" clipRule="evenodd" />
+  </svg>
+);
 const TABS = [
+  { id: 'home' as const, label: 'Home', Icon: IconHome },
   { id: 'export' as const, label: 'Export', Icon: IconExport },
   { id: 'formatting' as const, label: 'Format', Icon: IconFormat },
   { id: 'themes' as const, label: 'Themes', Icon: IconTheme },
@@ -151,6 +158,7 @@ export default function App() {
       {/* ── Tab Content ── */}
       <main className="flex-1 overflow-y-auto">
         <div className="animate-fade-in">
+          {activeTab === 'home' && <HomePanel />}
           {activeTab === 'export' && <ExportPanel />}
           {activeTab === 'formatting' && <FormattingPanel />}
           {activeTab === 'themes' && <ThemePanel />}

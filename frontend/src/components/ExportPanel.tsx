@@ -59,6 +59,7 @@ export function ExportPanel() {
     bookLanguage,
     tocTitle, setTocTitle,
     excludedChapters,
+    setLastExportUrl,
   } = useAppStore();
 
   const [results, setResults] = useState<Record<string, ExportResult>>({});
@@ -151,6 +152,8 @@ export function ExportPanel() {
       }
 
       setResults(newResults);
+      const firstOk = Object.values(newResults).find(r => r.downloadUrl);
+      if (firstOk?.downloadUrl) setLastExportUrl(firstOk.downloadUrl);
       if (errors.length > 0 && Object.keys(newResults).length > 0) {
         setError(`Some exports completed with errors:\n${errors.join('\n')}`);
       } else if (errors.length > 0) {

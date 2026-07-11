@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { BindingType, MeasurementUnit } from '../data/printSizes';
 
-type Tab = 'export' | 'formatting' | 'themes' | 'tools' | 'structure' | 'previewer' | 'versions' | 'boxset' | 'bible' | 'automation' | 'design' | 'publishing';
+type Tab = 'home' | 'export' | 'formatting' | 'themes' | 'tools' | 'structure' | 'previewer' | 'versions' | 'boxset' | 'bible' | 'automation' | 'design' | 'publishing';
 
 export type HeadingGap = 'compact' | 'normal' | 'spacious' | 'dramatic';
 export type ChapterStartPosition = 'top' | 'middle' | 'bottom';
@@ -52,6 +52,12 @@ interface AppState {
   excludedChapters: string[];
   toggleExcludedChapter: (title: string) => void;
 
+  // Publish-readiness checklist signals
+  designApplied: boolean;
+  setDesignApplied: (v: boolean) => void;
+  typoFixed: boolean;
+  setTypoFixed: (v: boolean) => void;
+
   // Theme state
   selectedThemeId: string | null;
   setSelectedThemeId: (id: string | null) => void;
@@ -66,7 +72,7 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>((set) => ({
-  activeTab: 'export',
+  activeTab: 'home',
   setActiveTab: (tab) => set({ activeTab: tab }),
 
   exportFormats: ['epub'],
@@ -114,6 +120,11 @@ export const useAppStore = create<AppState>((set) => ({
       ? state.excludedChapters.filter((t) => t !== title)
       : [...state.excludedChapters, title],
   })),
+
+  designApplied: false,
+  setDesignApplied: (v) => set({ designApplied: v }),
+  typoFixed: false,
+  setTypoFixed: (v) => set({ typoFixed: v }),
 
   selectedThemeId: null,
   setSelectedThemeId: (id) => set({ selectedThemeId: id }),

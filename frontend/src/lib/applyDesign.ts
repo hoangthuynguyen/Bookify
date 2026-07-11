@@ -58,4 +58,5 @@ export async function applyBookDesign(design: BookDesign): Promise<void> {
   s.setLargePrint(!!design.largePrint);
   if (design.language) s.setBookLanguage(design.language);
   if (design.tocTitle) s.setTocTitle(design.tocTitle);
+  s.setDesignApplied(true);
 }

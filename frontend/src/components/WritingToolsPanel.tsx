@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { callGas } from '../hooks/useGasBridge';
+import { useAppStore } from '../store/appStore';
 
 interface WordCountResult {
   total: number;
@@ -716,6 +717,7 @@ function VnTypoSection() {
     try {
       const res = await callGas<VnTypoResult>('fixVietnameseTypography');
       setResult(res);
+      useAppStore.getState().setTypoFixed(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
