@@ -21,7 +21,7 @@ interface StreakData {
   last30Days: Array<{ date: string; words: number; wrote: boolean }>;
 }
 
-type Section = 'wordcount' | 'sprint' | 'pacing' | 'streak' | 'quotes' | 'analyze' | 'dpi';
+type Section = 'wordcount' | 'sprint' | 'pacing' | 'streak' | 'quotes' | 'vntypo' | 'analyze' | 'dpi';
 
 const SECTIONS: { id: Section; label: string; icon: string }[] = [
   { id: 'wordcount', label: 'Words', icon: '#' },
@@ -29,6 +29,7 @@ const SECTIONS: { id: Section; label: string; icon: string }[] = [
   { id: 'pacing', label: 'Pacing', icon: '📈' },
   { id: 'streak', label: 'Streak', icon: '🔥' },
   { id: 'quotes', label: 'Quotes', icon: '"' },
+  { id: 'vntypo', label: 'VN Typo', icon: '✏️' },
   { id: 'analyze', label: 'Analyze', icon: '≡' },
   { id: 'dpi', label: 'Images', icon: '🖼' },
 ];
@@ -66,6 +67,7 @@ export function WritingToolsPanel() {
           {activeSection === 'pacing' && <PacingSection />}
           {activeSection === 'streak' && <StreakSection />}
           {activeSection === 'quotes' && <SmartQuotesSection />}
+          {activeSection === 'vntypo' && <VnTypoSection />}
           {activeSection === 'analyze' && <AnalyzeSection />}
           {activeSection === 'dpi' && <DpiValidatorSection />}
         </div>
@@ -682,6 +684,105 @@ function DpiValidatorSection() {
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =============================================================================
+// Vietnamese Typography Fixer — sửa lỗi trình bày chuẩn xuất bản
+// =============================================================================
+
+interface VnTypoResult {
+  ellipsis: number;
+  punctSpaces: number;
+  multiSpaces: number;
+  dashes: number;
+  total: number;
+}
+
+function VnTypoSection() {
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState<VnTypoResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function runFix() {
+    setRunning(true);
+    setError(null);
+    setResult(null);
+    try {
+      const res = await callGas<VnTypoResult>('fixVietnameseTypography');
+      setResult(res);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  const FIX_RULES = [
+    { icon: '…', label: 'Ba dấu chấm "..." → dấu ba chấm chuẩn "…"' },
+    { icon: '␣', label: 'Xóa khoảng trắng thừa trước dấu , . ; : ! ?' },
+    { icon: '⎵', label: 'Gộp nhiều khoảng trắng liên tiếp thành một' },
+    { icon: '–', label: 'Gạch đầu dòng hội thoại "- " → gạch thoại "– "' },
+  ];
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <h3 className="text-sm font-bold text-gray-900">✏️ Sửa Typography Tiếng Việt</h3>
+        <p className="text-[11px] text-gray-500 mt-0.5">
+          Quét toàn bộ tài liệu và sửa các lỗi trình bày thường gặp theo chuẩn xuất bản.
+        </p>
+      </div>
+
+      <div className="space-y-1.5">
+        {FIX_RULES.map(r => (
+          <div key={r.label} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg border border-gray-100">
+            <span className="w-6 h-6 bg-white rounded shadow-sm flex items-center justify-center text-xs font-bold text-bookify-600 shrink-0">{r.icon}</span>
+            <span className="text-[11px] text-gray-600">{r.label}</span>
+          </div>
+        ))}
+      </div>
+
+      <p className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-2">
+        ⚠️ Thao tác sửa trực tiếp trên tài liệu — có thể hoàn tác bằng Cmd+Z (từng bước) nếu cần.
+        Ngoặc kép cong dùng công cụ "Quotes" bên cạnh.
+      </p>
+
+      <button
+        onClick={runFix}
+        disabled={running}
+        className="w-full py-2.5 bg-bookify-600 text-white rounded-lg text-xs font-bold disabled:opacity-50 hover:bg-bookify-700 transition-colors"
+      >
+        {running ? 'Đang quét & sửa…' : 'Quét & Sửa Toàn Bộ Tài Liệu'}
+      </button>
+
+      {error && <div className="p-2 rounded-lg text-[11px] border bg-red-50 text-red-700 border-red-200">{error}</div>}
+
+      {result && (
+        <div className="border border-emerald-200 rounded-xl overflow-hidden">
+          <div className="px-3 py-2 bg-emerald-50 border-b border-emerald-100">
+            <p className="text-xs font-bold text-emerald-800">
+              {result.total > 0 ? `✓ Đã sửa ${result.total} lỗi` : '✓ Không tìm thấy lỗi nào — tài liệu sạch!'}
+            </p>
+          </div>
+          {result.total > 0 && (
+            <div className="p-3 grid grid-cols-2 gap-2">
+              {[
+                { label: 'Dấu ba chấm', value: result.ellipsis },
+                { label: 'Khoảng trắng trước dấu câu', value: result.punctSpaces },
+                { label: 'Khoảng trắng thừa', value: result.multiSpaces },
+                { label: 'Gạch thoại', value: result.dashes },
+              ].map(s => (
+                <div key={s.label} className="p-2 bg-gray-50 rounded-lg text-center">
+                  <p className="text-lg font-bold text-gray-800">{s.value}</p>
+                  <p className="text-[9px] text-gray-500">{s.label}</p>
+                </div>
+              ))}
             </div>
           )}
         </div>

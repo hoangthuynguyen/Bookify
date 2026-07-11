@@ -100,7 +100,7 @@ async function generateEpubInner(docContent, metadata, theme, settings) {
     author: metadata.author || 'Unknown Author',
     language: metadata.language || 'en',
     css: themeCSS,
-    tocTitle: 'Table of Contents',
+    tocTitle: settings.tocTitle || 'Table of Contents',
     appendChapterTitles: false,
     verbose: false,
     // One broken image link should not kill the whole book export

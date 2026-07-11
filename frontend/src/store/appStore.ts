@@ -44,6 +44,10 @@ interface AppState {
   setSceneBreakSymbol: (s: string) => void;
   runningHeader: string;
   setRunningHeader: (h: string) => void;
+  bookLanguage: string;
+  setBookLanguage: (l: string) => void;
+  tocTitle: string;
+  setTocTitle: (t: string) => void;
 
   // Theme state
   selectedThemeId: string | null;
@@ -97,6 +101,10 @@ export const useAppStore = create<AppState>((set) => ({
   setSceneBreakSymbol: (s) => set({ sceneBreakSymbol: s }),
   runningHeader: 'none',
   setRunningHeader: (h) => set({ runningHeader: h }),
+  bookLanguage: '',
+  setBookLanguage: (l) => set({ bookLanguage: l }),
+  tocTitle: '',
+  setTocTitle: (t) => set({ tocTitle: t }),
 
   selectedThemeId: null,
   setSelectedThemeId: (id) => set({ selectedThemeId: id }),

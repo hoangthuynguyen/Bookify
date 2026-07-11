@@ -199,6 +199,7 @@ function exportEpub(settings) {
         dropCapLines: settings.dropCapLines || 3,
         dropCapStyle: settings.dropCapStyle || 'classic',
         epubStartPage: settings.epubStartPage || 'right',
+        tocTitle: settings.tocTitle || '',
       },
     });
     return result;

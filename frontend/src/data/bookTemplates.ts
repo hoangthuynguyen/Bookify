@@ -28,6 +28,7 @@ export const BOOK_TEMPLATES: BookTemplate[] = [
       colorAccent: '#5d4a7e', dropCaps: false, dropCapLines: 2, dropCapStyle: 'classic',
       sceneBreakSymbol: '❀', headingGap: 'spacious', chapterStartPosition: 'middle',
       trimSize: '5.5x8.5', bindingType: 'paperback', runningHeader: 'chapter_title',
+      language: 'vi', tocTitle: 'Mục lục',
     },
   },
   {
@@ -41,6 +42,7 @@ export const BOOK_TEMPLATES: BookTemplate[] = [
       colorAccent: '#8c3b2e', dropCaps: true, dropCapLines: 3, dropCapStyle: 'accent',
       sceneBreakSymbol: '❧', headingGap: 'normal', chapterStartPosition: 'top',
       trimSize: '5.25x8', bindingType: 'paperback', runningHeader: 'author_title',
+      language: 'vi', tocTitle: 'Mục lục',
     },
   },
   {
@@ -54,6 +56,7 @@ export const BOOK_TEMPLATES: BookTemplate[] = [
       colorAccent: '#4a6b4f', dropCaps: false, dropCapLines: 2, dropCapStyle: 'classic',
       sceneBreakSymbol: '· · ·', headingGap: 'spacious', chapterStartPosition: 'middle',
       trimSize: '5x8', bindingType: 'paperback', runningHeader: 'none',
+      language: 'vi', tocTitle: 'Mục lục',
     },
   },
   {
@@ -67,6 +70,7 @@ export const BOOK_TEMPLATES: BookTemplate[] = [
       colorAccent: '#14508c', dropCaps: false, dropCapLines: 2, dropCapStyle: 'classic',
       sceneBreakSymbol: '— — —', headingGap: 'compact', chapterStartPosition: 'top',
       trimSize: '6x9', bindingType: 'paperback', runningHeader: 'chapter_title',
+      language: 'vi', tocTitle: 'Mục lục',
     },
   },
   {
@@ -80,6 +84,7 @@ export const BOOK_TEMPLATES: BookTemplate[] = [
       colorAccent: '#1a1a1a', dropCaps: false, dropCapLines: 2, dropCapStyle: 'classic',
       sceneBreakSymbol: '§', headingGap: 'compact', chapterStartPosition: 'top',
       trimSize: '7x10', bindingType: 'paperback', runningHeader: 'chapter_title',
+      language: 'vi', tocTitle: 'Mục lục',
     },
   },
   {
@@ -93,6 +98,7 @@ export const BOOK_TEMPLATES: BookTemplate[] = [
       colorAccent: '#e07b39', dropCaps: false, dropCapLines: 2, dropCapStyle: 'accent',
       sceneBreakSymbol: '★ ★ ★', headingGap: 'normal', chapterStartPosition: 'top',
       trimSize: '8.5x8.5', bindingType: 'hardcover', runningHeader: 'none',
+      language: 'vi', tocTitle: 'Mục lục',
     },
   },
   {
@@ -106,6 +112,7 @@ export const BOOK_TEMPLATES: BookTemplate[] = [
       colorAccent: '#8b1e1e', dropCaps: true, dropCapLines: 3, dropCapStyle: 'ornate',
       sceneBreakSymbol: '❖', headingGap: 'dramatic', chapterStartPosition: 'top',
       trimSize: '6x9', bindingType: 'hardcover', runningHeader: 'author_title',
+      language: 'vi', tocTitle: 'Mục lục',
     },
   },
   {
@@ -119,6 +126,7 @@ export const BOOK_TEMPLATES: BookTemplate[] = [
       colorAccent: '#14524a', dropCaps: true, dropCapLines: 4, dropCapStyle: 'ornate',
       sceneBreakSymbol: '✦ ✦ ✦', headingGap: 'dramatic', chapterStartPosition: 'middle',
       trimSize: '6x9', bindingType: 'paperback', runningHeader: 'chapter_title',
+      language: 'vi', tocTitle: 'Mục lục',
     },
   },
   {
@@ -132,6 +140,7 @@ export const BOOK_TEMPLATES: BookTemplate[] = [
       colorAccent: '#b23a6a', dropCaps: true, dropCapLines: 3, dropCapStyle: 'accent',
       sceneBreakSymbol: '✿', headingGap: 'spacious', chapterStartPosition: 'top',
       trimSize: '5x8', bindingType: 'paperback', runningHeader: 'author_title',
+      language: 'vi', tocTitle: 'Mục lục',
     },
   },
   {
@@ -145,6 +154,7 @@ export const BOOK_TEMPLATES: BookTemplate[] = [
       colorAccent: '#2f6f5e', dropCaps: false, dropCapLines: 2, dropCapStyle: 'classic',
       sceneBreakSymbol: '· ❋ ·', headingGap: 'spacious', chapterStartPosition: 'middle',
       trimSize: '5.5x8.5', bindingType: 'paperback', runningHeader: 'none',
+      language: 'vi', tocTitle: 'Mục lục',
     },
   },
   {
@@ -158,6 +168,7 @@ export const BOOK_TEMPLATES: BookTemplate[] = [
       colorAccent: '#d97706', dropCaps: false, dropCapLines: 2, dropCapStyle: 'classic',
       sceneBreakSymbol: '❤', headingGap: 'compact', chapterStartPosition: 'top',
       trimSize: '6x9', bindingType: 'paperback', runningHeader: 'chapter_title',
+      language: 'vi', tocTitle: 'Mục lục',
     },
   },
   {
@@ -171,6 +182,7 @@ export const BOOK_TEMPLATES: BookTemplate[] = [
       colorAccent: '#084c8d', dropCaps: false, dropCapLines: 2, dropCapStyle: 'classic',
       sceneBreakSymbol: '* * *', headingGap: 'normal', chapterStartPosition: 'top',
       trimSize: '6.14x9.21', bindingType: 'paperback', runningHeader: 'chapter_title',
+      language: 'vi', tocTitle: 'Mục lục',
       largePrint: true,
     },
   },

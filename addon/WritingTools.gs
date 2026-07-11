@@ -802,3 +802,61 @@ function saveSeriesLibrary(library) {
     throw new Error('Save series library failed: ' + error.message);
   }
 }
+
+// =============================================================================
+// Vietnamese Typography Fixer
+// =============================================================================
+
+/**
+ * Fix common Vietnamese typography issues across the document:
+ * - "..." -> "…" (dấu ba chấm chuẩn)
+ * - remove spaces before , . ; : ! ? (lỗi "từ ,")
+ * - collapse multiple spaces
+ * - dialogue dashes: paragraphs starting with "- " -> "– " (gạch thoại)
+ * @returns {{ ellipsis:number, punctSpaces:number, multiSpaces:number, dashes:number, total:number }}
+ */
+function fixVietnameseTypography() {
+  try {
+    var doc = DocumentApp.getActiveDocument();
+    var body = doc.getBody();
+    var fullText = body.getText();
+
+    // Count before fixing (replaceText gives no counts)
+    var ellipsisCount = (fullText.match(/\.\.\./g) || []).length;
+    var punctSpaceCount = (fullText.match(/ +[,.;:!?]/g) || []).length;
+    var multiSpaceCount = (fullText.match(/  +/g) || []).length;
+
+    // 1. Ellipsis
+    if (ellipsisCount) body.replaceText('\\.\\.\\.', '…');
+
+    // 2. Space before punctuation (literal per-char — RE2 has no backrefs)
+    var puncts = [',', ';', ':', '!', '?', '\\.'];
+    for (var p = 0; p < puncts.length; p++) {
+      body.replaceText(' +' + puncts[p], puncts[p].replace('\\', ''));
+    }
+
+    // 3. Multiple spaces
+    if (multiSpaceCount) body.replaceText('  +', ' ');
+
+    // 4. Dialogue dashes at paragraph start
+    var dashCount = 0;
+    var paras = body.getParagraphs();
+    for (var i = 0; i < paras.length; i++) {
+      var t = paras[i].getText();
+      if (t.lastIndexOf('- ', 0) === 0) {
+        paras[i].editAsText().deleteText(0, 0).insertText(0, '–');
+        dashCount++;
+      }
+    }
+
+    return {
+      ellipsis: ellipsisCount,
+      punctSpaces: punctSpaceCount,
+      multiSpaces: multiSpaceCount,
+      dashes: dashCount,
+      total: ellipsisCount + punctSpaceCount + multiSpaceCount + dashCount,
+    };
+  } catch (error) {
+    throw new Error('Vietnamese typography fix failed: ' + error.message);
+  }
+}

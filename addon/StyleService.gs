@@ -805,6 +805,7 @@ function insertStyledToC(options) {
     options = options || {};
     var leader = options.leader || 'dots';
     var levels = (options.levels && options.levels.length) ? options.levels : [1, 2, 3];
+    var tocTitle = options.title || 'Contents';
 
     var doc = DocumentApp.getActiveDocument();
     var body = doc.getBody();
@@ -820,7 +821,7 @@ function insertStyledToC(options) {
     var insertIndex = 0;
     
     // Add styled TOC heading
-    var tocHeading = body.insertParagraph(insertIndex, 'Contents');
+    var tocHeading = body.insertParagraph(insertIndex, tocTitle);
     tocHeading.setHeading(DocumentApp.ParagraphHeading.HEADING1);
     tocHeading.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
     tocHeading.editAsText().setFontSize(22);
@@ -1132,5 +1133,59 @@ function updateImageMeta(index, alt, tag) {
     return { success: true };
   } catch (error) {
     throw new Error('Update image failed: ' + error.message);
+  }
+}
+
+// =============================================================================
+// Chapter Renumbering — "Chương 1", "Chương 2"… tự động
+// =============================================================================
+
+function toRoman_(num) {
+  var map = [[1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],[100,'C'],[90,'XC'],[50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']];
+  var out = '';
+  for (var i = 0; i < map.length; i++) {
+    while (num >= map[i][0]) { out += map[i][1]; num -= map[i][0]; }
+  }
+  return out;
+}
+
+/**
+ * Renumber every Heading 1 as "<prefix> <N>[: title]".
+ * Strips any existing "Chương/Chapter <n>" prefix before renumbering,
+ * so it is safe to run repeatedly after adding/moving chapters.
+ * @param {object} options - { prefix: 'Chương', style: 'arabic'|'roman', separator: ': ' }
+ * @returns {{ count: number }}
+ */
+function renumberChapters(options) {
+  try {
+    options = options || {};
+    var prefix = (options.prefix !== undefined ? options.prefix : 'Chương');
+    var style = options.style || 'arabic';
+    var separator = options.separator || ': ';
+
+    var body = DocumentApp.getActiveDocument().getBody();
+    var n = 0;
+    var numChildren = body.getNumChildren();
+
+    for (var i = 0; i < numChildren; i++) {
+      var child = body.getChild(i);
+      if (child.getType() !== DocumentApp.ElementType.PARAGRAPH) continue;
+      var para = child.asParagraph();
+      if (para.getHeading() !== DocumentApp.ParagraphHeading.HEADING1) continue;
+
+      n++;
+      var current = para.getText();
+      // Strip existing numbering: "Chương 3:", "CHAPTER IV -", "Chapter 12."...
+      var rest = current.replace(/^\s*(chương|chapter|chuong|phần|part)?\s*([0-9]+|[IVXLCDM]+)?\s*[:.\-–—]?\s*/i, '').trim();
+      var num = style === 'roman' ? toRoman_(n) : String(n);
+      var newTitle = prefix ? prefix + ' ' + num : num;
+      if (rest) newTitle += separator + rest;
+
+      para.editAsText().setText(newTitle);
+    }
+
+    return { count: n };
+  } catch (error) {
+    throw new Error('Renumber chapters failed: ' + error.message);
   }
 }

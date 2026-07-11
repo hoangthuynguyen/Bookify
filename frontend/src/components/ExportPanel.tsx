@@ -56,6 +56,8 @@ export function ExportPanel() {
     dropCaps, setDropCaps,
     sceneBreakSymbol: sceneBreak, setSceneBreakSymbol: setSceneBreak,
     runningHeader, setRunningHeader,
+    bookLanguage,
+    tocTitle, setTocTitle,
   } = useAppStore();
 
   const [results, setResults] = useState<Record<string, ExportResult>>({});
@@ -116,11 +118,13 @@ export function ExportPanel() {
         bindingType, genre,
         headingGap, chapterStartPosition, largePrint,
         dropCapLines, dropCapStyle,
+        tocTitle: tocTitle.trim() || undefined,
         metadataOverrides: {
           title: title.trim() || undefined,
           author: author.trim() || undefined,
           isbn: isbn.trim() || undefined,
           publisher: publisher.trim() || undefined,
+          language: bookLanguage || undefined,
         },
       };
 
@@ -319,6 +323,16 @@ export function ExportPanel() {
           <p className="section-title text-violet-500">EPUB Options</p>
           <ToggleRow label="Drop caps at chapter start" checked={dropCaps} onChange={setDropCaps} />
           <ToggleRow label="Large print (16pt+, high legibility)" checked={largePrint} onChange={setLargePrint} />
+          <div>
+            <label className="text-[11px] text-gray-500 block mb-1">TOC title {bookLanguage === 'vi' ? '(sách tiếng Việt)' : ''}</label>
+            <input
+              type="text"
+              placeholder='Table of Contents — gõ "Mục lục" cho sách Việt'
+              value={tocTitle}
+              onChange={e => setTocTitle(e.target.value)}
+              className="input-field"
+            />
+          </div>
           <div>
             <label className="text-[11px] text-gray-500 block mb-1">Scene break symbol</label>
             <select value={sceneBreak} onChange={e => setSceneBreak(e.target.value)} className="select-field">

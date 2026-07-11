@@ -79,6 +79,11 @@ export function FormattingPanel() {
   // ToC Stylist
   const [tocLeader, setTocLeader] = useState<'dots' | 'space' | 'line'>('dots');
   const [tocLevels, setTocLevels] = useState<Record<number, boolean>>({ 1: true, 2: true, 3: false, 4: false });
+  const [tocHeadingTitle, setTocHeadingTitle] = useState('');
+
+  // Chapter renumbering
+  const [chapterPrefix, setChapterPrefix] = useState('Chương');
+  const [chapterNumStyle, setChapterNumStyle] = useState<'arabic' | 'roman'>('arabic');
 
   async function withStatus<T>(fn: () => Promise<T>, successMsg: string) {
     setLoading(true);
@@ -260,6 +265,44 @@ export function FormattingPanel() {
                   {loading ? 'Inserting...' : 'Insert Chapter'}
                 </button>
               </div>
+
+              {/* Auto-renumber chapters */}
+              <div className="pt-3 mt-3 border-t border-gray-100 space-y-2">
+                <p className="text-[11px] font-semibold text-gray-600">🔢 Đánh số chương tự động</p>
+                <p className="text-[10px] text-gray-400">
+                  Đánh lại toàn bộ Heading 1 thành "{chapterPrefix || '(số)'} 1, 2, 3…". Tự bỏ số cũ nên chạy
+                  lại thoải mái sau khi thêm/di chuyển chương.
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-semibold text-gray-600 block mb-1">Tiền tố</label>
+                    <input
+                      type="text" placeholder="Chương / Chapter / Phần"
+                      value={chapterPrefix}
+                      onChange={e => setChapterPrefix(e.target.value)}
+                      className="input-field"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-semibold text-gray-600 block mb-1">Kiểu số</label>
+                    <select value={chapterNumStyle} onChange={e => setChapterNumStyle(e.target.value as 'arabic' | 'roman')} className="select-field">
+                      <option value="arabic">1, 2, 3…</option>
+                      <option value="roman">I, II, III…</option>
+                    </select>
+                  </div>
+                </div>
+                <button
+                  onClick={() => withStatus(
+                    () => callGas<{ count: number }>('renumberChapters', { prefix: chapterPrefix.trim(), style: chapterNumStyle })
+                      .then(r => setStatus({ text: `Đã đánh số ${r.count} chương!`, ok: true })),
+                    'Chapters renumbered!'
+                  )}
+                  disabled={loading}
+                  className="w-full py-2 bg-gray-800 text-white rounded-md text-xs font-bold disabled:opacity-50 hover:bg-gray-900 transition-colors"
+                >
+                  {loading ? 'Đang đánh số…' : 'Đánh Số Lại Tất Cả Chương'}
+                </button>
+              </div>
             </div>
           )}
 
@@ -300,10 +343,22 @@ export function FormattingPanel() {
                 </div>
               </div>
 
+              <div className="mb-2">
+                <label className="text-[10px] font-semibold text-gray-600 mb-1 block">TOC Title</label>
+                <input
+                  type="text"
+                  placeholder='Contents — gõ "Mục lục" cho sách tiếng Việt'
+                  value={tocHeadingTitle}
+                  onChange={e => setTocHeadingTitle(e.target.value)}
+                  className="input-field"
+                />
+              </div>
+
               <button
                 onClick={() => withStatus(() => callGas('insertStyledToC', {
                   leader: tocLeader,
                   levels: [1, 2, 3, 4].filter(lv => tocLevels[lv]),
+                  title: tocHeadingTitle.trim() || undefined,
                 }), 'Custom Table of Contents inserted!')}
                 disabled={loading}
                 className="w-full py-2 bg-bookify-600 text-white rounded-md text-xs font-bold disabled:opacity-50 hover:bg-bookify-700 transition-colors shadow-sm mt-2"

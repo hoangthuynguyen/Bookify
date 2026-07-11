@@ -22,6 +22,10 @@ export interface BookDesign {
   bindingType: string;
   runningHeader: string;
   largePrint?: boolean;
+  /** BCP-47 code baked into EPUB metadata, e.g. 'vi' for Vietnamese */
+  language?: string;
+  /** Localized table-of-contents title, e.g. 'Mục lục' */
+  tocTitle?: string;
 }
 
 /**
@@ -52,4 +56,6 @@ export async function applyBookDesign(design: BookDesign): Promise<void> {
   s.setTrimSize(design.trimSize);
   s.setBindingType(design.bindingType as 'paperback' | 'hardcover' | 'spiral');
   s.setLargePrint(!!design.largePrint);
+  if (design.language) s.setBookLanguage(design.language);
+  if (design.tocTitle) s.setTocTitle(design.tocTitle);
 }
