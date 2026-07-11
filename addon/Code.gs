@@ -24,7 +24,15 @@ const CONFIG = {
 function onOpen(e) {
   try {
     var ui = DocumentApp.getUi();
-    var menu = ui.createMenu('Bookify');
+    // Add-ons may not create arbitrary top-level menus: createAddonMenu()
+    // places entries under Extensions -> Bookify (works in test deployments
+    // and published add-ons). Fall back to a top-level menu for bound scripts.
+    var menu;
+    try {
+      menu = ui.createAddonMenu();
+    } catch (menuErr) {
+      menu = ui.createMenu('Bookify');
+    }
 
     menu.addItem('Open Formatter', 'openSidebar');
 
